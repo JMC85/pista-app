@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pista — Investigación de palabras clave para YouTube</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #12132a;
+    --panel: #1b1d3d;
+    --panel-2: #232650;
+    --line: #33366b;
+    --text: #f4f2ea;
+    --muted: #9ea2cf;
+    --amber: #f2a93b;
+    --amber-dim: #6b5326;
+    --red: #ff5d5d;
+    --green: #6fd4a0;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(circle at 15% -10%, #23265a 0%, transparent 45%),
+      radial-gradient(circle at 100% 0%, #1a1c3f 0%, transparent 40%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  header{
+    padding:28px clamp(20px,5vw,64px) 10px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand .dot{
+    width:11px;height:11px;border-radius:50%;
+    background:var(--red);
+    box-shadow:0 0 10px 2px rgba(255,93,93,.6);
+    animation:pulse 2.4s infinite ease-in-out;
+  }
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .brand h1{
+    font-family:'Archivo Black',sans-serif;
+    font-size:22px;
+    letter-spacing:.5px;
+    margin:0;
+  }
+  .brand span{color:var(--amber);}
+  .settings-btn{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--muted);
+    padding:8px 14px;
+    border-radius:8px;
+    font-size:13px;
+    cursor:pointer;
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .settings-btn:hover{border-color:var(--amber);color:var(--amber);}
+
+  main{padding:0 clamp(20px,5vw,64px) 60px;}
+
+  .hero{
+    max-width:760px;
+    margin:60px auto 40px;
+    text-align:center;
+  }
+  .hero .eyebrow{
+    color:var(--amber);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    margin-bottom:14px;
+  }
+  .hero h2{
+    font-family:'Archivo Black',sans-serif;
+    font-size:clamp(28px,4.2vw,44px);
+    line-height:1.15;
+    margin:0 0 14px;
+  }
+  .hero p{color:var(--muted);font-size:15px;line-height:1.6;margin:0 auto;max-width:520px;}
+
+  .search-row{
+    display:flex;
+    gap:10px;
+    max-width:640px;
+    margin:32px auto 0;
+  }
+  .search-row input[type=text]{
+    flex:1;
+    background:var(--panel);
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:16px 18px;
+    border-radius:10px;
+    font-size:15px;
+    font-family:'Inter',sans-serif;
+  }
+  .search-row input[type=text]:focus{outline:2px solid var(--amber);border-color:var(--amber);}
+  .search-row button{
+    background:var(--amber);
+    color:#1a1200;
+    border:none;
+    padding:0 26px;
+    border-radius:10px;
+    font-weight:700;
+    font-size:15px;
+    cursor:pointer;
+  }
+  .search-row button:disabled{opacity:.5;cursor:not-allowed;}
+  .search-row button:hover:not(:disabled){background:#ffbb52;}
+
+  .hint{
+    text-align:center;
+    color:var(--muted);
+    font-size:12px;
+    margin-top:10px;
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .hint button{background:none;border:none;color:var(--amber);text-decoration:underline;cursor:pointer;font-family:inherit;font-size:inherit;padding:0;}
+
+  #status{
+    max-width:640px;margin:24px auto 0;text-align:center;color:var(--muted);
+    font-family:'IBM Plex Mono',monospace;font-size:13px;min-height:18px;
+  }
+  #status.error{color:var(--red);}
+
+  .results{
+    display:none;
+    max-width:1100px;
+    margin:44px auto 0;
+    grid-template-columns:280px 1fr;
+    gap:24px;
+  }
+  .results.show{display:grid;}
+  @media (max-width:760px){.results{grid-template-columns:1fr;}}
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:22px;
+  }
+  .panel h3{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin:0 0 18px;
+  }
+
+  /* opportunity meter — film light-meter style */
+  .meter-wrap{display:flex;flex-direction:column;align-items:center;margin-bottom:22px;}
+  .meter{
+    width:170px;height:170px;
+    position:relative;
+  }
+  .meter svg{width:100%;height:100%;}
+  .meter-label{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-40%);
+    text-align:center;
+  }
+  .meter-label .num{font-family:'Archivo Black',sans-serif;font-size:34px;display:block;}
+  .meter-label .tag{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;}
+
+  .stat-row{
+    display:flex;justify-content:space-between;
+    padding:10px 0;border-top:1px solid var(--line);
+    font-size:13px;
+  }
+  .stat-row:first-of-type{border-top:none;}
+  .stat-row .k{color:var(--muted);}
+  .stat-row .v{font-family:'IBM Plex Mono',monospace;font-weight:600;}
+
+  .verdict{
+    margin-top:16px;
+    padding:12px 14px;
+    border-radius:8px;
+    font-size:13px;
+    line-height:1.5;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+  }
+  .verdict b{color:var(--amber);}
+
+  .video-list{display:flex;flex-direction:column;gap:10px;}
+  .video-card{
+    display:flex;gap:14px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:12px;
+    align-items:center;
+    text-decoration:none;
+    color:var(--text);
+  }
+  .video-card:hover{border-color:var(--amber);}
+  .video-card img{
+    width:112px;height:63px;border-radius:6px;object-fit:cover;flex-shrink:0;
+    background:#000;
+  }
+  .video-card .rank{
+    font-family:'Archivo Black',sans-serif;
+    color:var(--amber-dim);
+    font-size:22px;
+    width:28px;flex-shrink:0;text-align:center;
+  }
+  .video-card .body{flex:1;min-width:0;}
+  .video-card .title{
+    font-size:13.5px;font-weight:600;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    margin-bottom:4px;
+  }
+  .video-card .meta{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;color:var(--muted);
+    display:flex;gap:10px;flex-wrap:wrap;
+  }
+  .video-card .meta .views{color:var(--green);}
+
+  /* modal */
+  .modal-bg{
+    display:none;position:fixed;inset:0;background:rgba(10,10,25,.7);
+    align-items:center;justify-content:center;z-index:10;padding:20px;
+  }
+  .modal-bg.show{display:flex;}
+  .modal{
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:28px;max-width:440px;width:100%;
+  }
+  .modal h3{font-family:'Archivo Black',sans-serif;font-size:17px;margin:0 0 10px;}
+  .modal p{color:var(--muted);font-size:13px;line-height:1.6;margin:0 0 16px;}
+  .modal ol{color:var(--muted);font-size:13px;line-height:1.8;padding-left:20px;margin:0 0 18px;}
+  .modal ol a{color:var(--amber);}
+  .modal input{
+    width:100%;background:var(--panel-2);border:1px solid var(--line);
+    color:var(--text);padding:12px 14px;border-radius:8px;font-family:'IBM Plex Mono',monospace;
+    font-size:13px;margin-bottom:14px;
+  }
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;}
+  .modal-actions button{
+    padding:10px 18px;border-radius:8px;border:1px solid var(--line);
+    background:transparent;color:var(--muted);cursor:pointer;font-family:'Inter',sans-serif;font-size:13px;
+  }
+  .modal-actions button.primary{background:var(--amber);color:#1a1200;border:none;font-weight:700;}
+
+  footer{
+    text-align:center;padding:30px;color:var(--muted);
+    font-family:'IBM Plex Mono',monospace;font-size:11px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="dot"></span>
+    <h1>PISTA<span>.</span></h1>
+  </div>
+  <span class="settings-btn" style="cursor:default;">✓ Listo para usar</span>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="eyebrow">Investigación de palabras clave</div>
+    <h2>Encontrá el tema antes de prender la cámara</h2>
+    <p>Escribí una idea de video y Pista analiza qué está rankeando ahora mismo en YouTube: competencia, demanda y qué tan reciente es la tendencia.</p>
+    <div class="search-row">
+      <input type="text" id="query" placeholder="ej: rutina de espalda en casa" />
+      <button id="searchBtn">Buscar</button>
+    </div>
+    <div id="status"></div>
+  </div>
+
+  <div class="results" id="results">
+    <div class="panel">
+      <h3>Diagnóstico</h3>
+      <div class="meter-wrap">
+        <div class="meter">
+          <svg viewBox="0 0 100 100">
+            <path d="M 12 78 A 40 40 0 1 1 88 78" fill="none" stroke="#2a2d5c" stroke-width="9" stroke-linecap="round"/>
+            <path id="meterArc" d="M 12 78 A 40 40 0 1 1 88 78" fill="none" stroke="#f2a93b" stroke-width="9" stroke-linecap="round" stroke-dasharray="192" stroke-dashoffset="192"/>
+          </svg>
+          <div class="meter-label">
+            <span class="num" id="meterNum">--</span>
+            <span class="tag">OPORTUNIDAD</span>
+          </div>
+        </div>
+      </div>
+      <div class="stat-row"><span class="k">Competencia</span><span class="v" id="statCompetition">--</span></div>
+      <div class="stat-row"><span class="k">Videos analizados</span><span class="v" id="statTotal">--</span></div>
+      <div class="stat-row"><span class="k">Vistas promedio</span><span class="v" id="statAvgViews">--</span></div>
+      <div class="stat-row"><span class="k">Vistas mediana</span><span class="v" id="statMedViews">--</span></div>
+      <div class="stat-row"><span class="k">Subidos últ. 6 meses</span><span class="v" id="statRecent">--</span></div>
+      <div class="verdict" id="verdict"></div>
+    </div>
+    <div class="video-list" id="videoList"></div>
+  </div>
+</main>
+
+<footer>PISTA · prototipo · datos en vivo desde YouTube Data API</footer>
+
+<script>
+const statusEl = document.getElementById('status');
+function setStatus(msg, isError){
+  statusEl.textContent = msg;
+  statusEl.className = isError ? 'error' : '';
+}
+
+function fmtViews(n){
+  if(n >= 1000000) return (n/1000000).toFixed(1).replace('.0','') + 'M';
+  if(n >= 1000) return (n/1000).toFixed(1).replace('.0','') + 'K';
+  return String(n);
+}
+function fmtDate(iso){
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-AR', {year:'numeric', month:'short', day:'numeric'});
+}
+function median(arr){
+  const s = [...arr].sort((a,b)=>a-b);
+  const mid = Math.floor(s.length/2);
+  return s.length % 2 !== 0 ? s[mid] : (s[mid-1]+s[mid])/2;
+}
+
+document.getElementById('searchBtn').onclick = runSearch;
+document.getElementById('query').addEventListener('keydown', e => { if(e.key === 'Enter') runSearch(); });
+
+async function runSearch(){
+  const q = document.getElementById('query').value.trim();
+  if(!q){ setStatus('Escribí un tema para buscar.', true); return; }
+
+  const btn = document.getElementById('searchBtn');
+  btn.disabled = true;
+  setStatus('Buscando en YouTube...');
+  document.getElementById('results').classList.remove('show');
+
+  try{
+    const res = await fetch(`/.netlify/functions/search?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    if(!res.ok){ throw new Error(data.error || 'Error al buscar.'); }
+
+    if(!data.videos || data.videos.length === 0){
+      setStatus('No se encontraron videos para ese tema.', true);
+      btn.disabled = false;
+      return;
+    }
+
+    const videos = data.videos.sort((a,b) => b.views - a.views);
+    renderResults(q, data.totalResults, videos);
+    setStatus(`Listo. ${videos.length} videos analizados para "${q}".`);
+  }catch(err){
+    setStatus('Error: ' + err.message, true);
+  }
+  btn.disabled = false;
+}
+
+function renderResults(query, totalResults, videos){
+  const views = videos.map(v => v.views);
+  const avg = Math.round(views.reduce((a,b)=>a+b,0) / views.length);
+  const med = Math.round(median(views));
+  const sixMonthsAgo = Date.now() - (1000*60*60*24*182);
+  const recentCount = videos.filter(v => new Date(v.publishedAt).getTime() > sixMonthsAgo).length;
+
+  // competition: based on total indexed results for the term (rough proxy)
+  const competitionScore = Math.min(100, Math.round((Math.log10(Math.max(totalResults,1)) / 7) * 100));
+  let competitionLabel = 'Baja';
+  if(competitionScore > 65) competitionLabel = 'Alta';
+  else if(competitionScore > 35) competitionLabel = 'Media';
+
+  // demand: based on median views, log-scaled
+  const demandScore = Math.min(100, Math.round((Math.log10(Math.max(med,1)) / 6.5) * 100));
+
+  // opportunity = demanda alta con competencia manejable
+  let opportunity = Math.round(demandScore * 0.65 + (100 - competitionScore) * 0.35);
+  opportunity = Math.max(3, Math.min(97, opportunity));
+
+  // meter arc: circumference of the drawn arc ~ 192 (matches stroke-dasharray above)
+  const arcLength = 192;
+  const offset = arcLength - (arcLength * opportunity / 100);
+  const meterArc = document.getElementById('meterArc');
+  meterArc.style.strokeDashoffset = offset;
+  meterArc.style.stroke = opportunity > 60 ? '#6fd4a0' : (opportunity > 35 ? '#f2a93b' : '#ff5d5d');
+  document.getElementById('meterNum').textContent = opportunity;
+
+  document.getElementById('statCompetition').textContent = `${competitionLabel} (${fmtViews(totalResults)} videos)`;
+  document.getElementById('statTotal').textContent = videos.length;
+  document.getElementById('statAvgViews').textContent = fmtViews(avg);
+  document.getElementById('statMedViews').textContent = fmtViews(med);
+  document.getElementById('statRecent').textContent = `${recentCount} de ${videos.length}`;
+
+  let verdictText = '';
+  if(opportunity > 60){
+    verdictText = `<b>Buena señal.</b> Hay demanda real y la competencia es manejable. Mirá qué ángulo no está cubierto por los videos de abajo.`;
+  } else if(opportunity > 35){
+    verdictText = `<b>Terreno mixto.</b> El tema funciona, pero vas a necesitar un ángulo o título más específico para destacar entre lo que ya existe.`;
+  } else {
+    verdictText = `<b>Cuesta arriba.</b> Mucha competencia establecida o poca demanda reciente. Probá un término más específico (long-tail) relacionado con "${query}".`;
+  }
+  document.getElementById('verdict').innerHTML = verdictText;
+
+  const list = document.getElementById('videoList');
+  list.innerHTML = videos.slice(0,15).map((v, i) => `
+    <a class="video-card" href="https://youtube.com/watch?v=${v.id}" target="_blank" rel="noopener">
+      <span class="rank">${i+1}</span>
+      <img src="${v.thumb}" alt="" loading="lazy" />
+      <div class="body">
+        <div class="title">${v.title.replace(/</g,'&lt;')}</div>
+        <div class="meta">
+          <span class="views">${fmtViews(v.views)} vistas</span>
+          <span>${v.channel.replace(/</g,'&lt;')}</span>
+          <span>${fmtDate(v.publishedAt)}</span>
+        </div>
+      </div>
+    </a>
+  `).join('');
+
+  document.getElementById('results').classList.add('show');
+}
+</script>
+
+</body>
+</html>
