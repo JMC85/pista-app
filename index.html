@@ -356,8 +356,7 @@ async function runSearch(){
 
     const videos = data.videos.sort((a,b) => b.views - a.views);
     renderResults(q, data.totalResults, videos);
-    const remainingTxt = typeof data.remaining === 'number' ? ` (te quedan ${data.remaining} búsquedas gratis hoy)` : '';
-    setStatus(`Listo. ${videos.length} videos analizados para "${q}".${remainingTxt}`);
+    setStatus(`Listo. ${videos.length} videos analizados para "${q}".`);
   }catch(err){
     setStatus('Error: ' + err.message, true);
   }
