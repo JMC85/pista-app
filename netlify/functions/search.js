@@ -1,10 +1,6 @@
 // Netlify Function: hace las llamadas a YouTube con la clave guardada en el servidor.
 // El navegador del usuario nunca ve esta clave.
 
-const { getStore } = require('@netlify/blobs');
-
-const DAILY_LIMIT = 8;
-
 exports.handler = async (event) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -22,27 +18,6 @@ exports.handler = async (event) => {
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'El servidor no tiene configurada la clave de YouTube.' }) };
     }
 
-    // --- Límite diario por visitante, para proteger la cuota compartida ---
-    const ip = event.headers['x-nf-client-connection-ip'] || event.headers['client-ip'] || 'desconocido';
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-    const store = getStore('pista-usage');
-    const usageKey = `${today}:${ip}`;
-
-    let usedToday = 0;
-    try {
-      const raw = await store.get(usageKey);
-      usedToday = raw ? parseInt(raw, 10) : 0;
-    } catch (e) { usedToday = 0; }
-
-    if (usedToday >= DAILY_LIMIT) {
-      return {
-        statusCode: 429,
-        headers,
-        body: JSON.stringify({ error: `Llegaste al límite gratis de ${DAILY_LIMIT} búsquedas por hoy. Probá de nuevo mañana.` })
-      };
-    }
-    // --- fin del límite diario ---
-
     const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&order=relevance&maxResults=25&relevanceLanguage=es&q=${encodeURIComponent(q)}&key=${API_KEY}`;
     const searchRes = await fetch(searchUrl);
     const searchData = await searchRes.json();
@@ -50,14 +25,14 @@ exports.handler = async (event) => {
     if (searchData.error) {
       const reason = searchData.error.errors?.[0]?.reason;
       if (reason === 'quotaExceeded') {
-        return { statusCode: 429, headers, body: JSON.stringify({ error: 'Se alcanzó el límite diario de búsquedas. Probá de nuevo mañana.' }) };
+        return { statusCode: 429, headers, body: JSON.stringify({ error: 'Se alcanzó el límite diario de búsquedas gratis. Probá de nuevo mañana.' }) };
       }
       return { statusCode: 500, headers, body: JSON.stringify({ error: searchData.error.message }) };
     }
 
     const items = searchData.items || [];
     if (items.length === 0) {
-      return { statusCode: 200, headers, body: JSON.stringify({ totalResults: 0, videos: [], remaining: DAILY_LIMIT - usedToday - 1 }) };
+      return { statusCode: 200, headers, body: JSON.stringify({ totalResults: 0, videos: [] }) };
     }
 
     const ids = items.map(it => it.id.videoId).join(',');
@@ -68,9 +43,6 @@ exports.handler = async (event) => {
     if (statsData.error) {
       return { statusCode: 500, headers, body: JSON.stringify({ error: statsData.error.message }) };
     }
-
-    // solo contamos la búsqueda como "usada" si llegó hasta acá con éxito
-    try { await store.set(usageKey, String(usedToday + 1)); } catch (e) {}
 
     const videos = statsData.items.map(v => ({
       id: v.id,
@@ -86,8 +58,7 @@ exports.handler = async (event) => {
       headers,
       body: JSON.stringify({
         totalResults: searchData.pageInfo?.totalResults || items.length,
-        videos,
-        remaining: DAILY_LIMIT - usedToday - 1
+        videos
       })
     };
   } catch (err) {
