@@ -50,7 +50,8 @@ exports.handler = async (event) => {
       channel: v.snippet.channelTitle,
       thumb: v.snippet.thumbnails.medium?.url || v.snippet.thumbnails.default.url,
       publishedAt: v.snippet.publishedAt,
-      views: parseInt(v.statistics.viewCount || '0', 10)
+      views: parseInt(v.statistics.viewCount || '0', 10),
+      tags: v.snippet.tags || []
     }));
 
     return {
