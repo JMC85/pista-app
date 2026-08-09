@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pista — Investigación de palabras clave para YouTube</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%2312132a'/%3E%3Ccircle cx='50' cy='30' r='12' fill='%23ff5d5d'/%3E%3C/svg%3E">
+<meta property="og:title" content="Pista — Encontrá el tema antes de prender la cámara">
+<meta property="og:description" content="Herramienta gratuita en español para investigar qué video de YouTube conviene grabar. Sin registro, sin costo.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Pista — Investigación de palabras clave para YouTube">
+<meta name="twitter:description" content="Herramienta gratuita en español para investigar qué video de YouTube conviene grabar.">
+<meta name="description" content="Escribí una idea de video y Pista te muestra qué tan competido está el tema en YouTube ahora mismo. Gratis, en español, sin registro.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -268,6 +276,38 @@
     text-align:center;padding:30px;color:var(--muted);
     font-family:'IBM Plex Mono',monospace;font-size:11px;
   }
+
+  .tabs{
+    display:flex;justify-content:center;gap:8px;
+    padding:16px clamp(20px,5vw,64px) 0;
+  }
+  .tab-btn{
+    background:transparent;border:1px solid var(--line);color:var(--muted);
+    padding:9px 18px;border-radius:20px;font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;cursor:pointer;
+  }
+  .tab-btn.active{background:var(--amber);color:#1a1200;border-color:var(--amber);font-weight:700;}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  .empty-state{
+    text-align:center;color:var(--muted);padding:30px 10px;
+    font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.7;
+  }
+
+  .underdog-card{
+    display:flex;gap:14px;align-items:center;
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:14px;margin-bottom:10px;text-decoration:none;color:var(--text);
+  }
+  .underdog-card:hover{border-color:var(--amber);}
+  .underdog-card img.channel-thumb{width:48px;height:48px;border-radius:50%;flex-shrink:0;}
+  .underdog-card img.video-thumb{width:100px;height:56px;border-radius:6px;object-fit:cover;flex-shrink:0;}
+  .underdog-ratio{
+    font-family:'Archivo Black',sans-serif;color:var(--green);font-size:18px;
+    flex-shrink:0;text-align:center;min-width:60px;
+  }
+  .underdog-ratio .lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--muted);display:block;}
 </style>
 </head>
 <body>
@@ -277,16 +317,22 @@
     <span class="dot"></span>
     <h1>PISTA<span>.</span></h1>
   </div>
-  <span class="settings-btn" style="cursor:default;">✓ Listo para usar</span>
+  <span class="settings-btn" style="cursor:default;">Sin registro · Gratis</span>
 </header>
 
+<div class="tabs">
+  <button class="tab-btn active" id="tabKeywords" onclick="switchTab('keywords')">Investigar tema</button>
+  <button class="tab-btn" id="tabUnderdogs" onclick="switchTab('underdogs')">Canales underdog</button>
+</div>
+
 <main>
+  <div class="tab-panel active" id="panelKeywords">
   <div class="hero">
     <div class="eyebrow">Investigación de palabras clave</div>
     <h2>Encontrá el tema antes de prender la cámara</h2>
     <p>Escribí una idea de video y Pista analiza qué está rankeando ahora mismo en YouTube: competencia, demanda y qué tan reciente es la tendencia.</p>
     <div class="search-row">
-      <input type="text" id="query" placeholder="ej: rutina de espalda en casa" />
+      <input type="text" id="query" placeholder="ej: rutina de espalda en casa" autofocus />
       <button id="searchBtn">Buscar</button>
     </div>
     <div id="status"></div>
@@ -317,6 +363,22 @@
       <div id="tagCloud" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
     </div>
     <div class="video-list" id="videoList"></div>
+  </div>
+  </div>
+
+  <div class="tab-panel" id="panelUnderdogs">
+    <div class="hero">
+      <div class="eyebrow">Canales underdog</div>
+      <h2>Encontrá canales chicos con vistas grandes</h2>
+      <p>Buscá un tema y Pista te muestra canales con pocos suscriptores que igual están consiguiendo muchas vistas — una señal de que el formato o ángulo está funcionando, más allá del tamaño del canal.</p>
+      <div class="search-row">
+        <input type="text" id="underdogQuery" placeholder="ej: rutina de espalda en casa" />
+        <button id="underdogBtn">Buscar</button>
+      </div>
+      <div id="underdogStatus"></div>
+      <div class="empty-state">Nota: es una foto del momento actual (vistas del mejor video vs. suscriptores), no un histórico de crecimiento en el tiempo.</div>
+    </div>
+    <div id="underdogList" style="max-width:760px;margin:20px auto 0;"></div>
   </div>
 </main>
 
@@ -385,7 +447,7 @@ async function runSearch(){
   document.getElementById('results').classList.remove('show');
 
   try{
-    const res = await fetch(`/.netlify/functions/search?q=${encodeURIComponent(q)}`);
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
     const data = await res.json();
     if(!res.ok){ throw new Error(data.error || 'Error al buscar.'); }
 
@@ -485,6 +547,74 @@ function renderResults(query, totalResults, videos){
       `<span class="tag-pill">${tag.replace(/</g,'&lt;')} (${count})</span>`
     ).join('');
   }
+}
+
+// --- pestañas ---
+function switchTab(tab){
+  document.getElementById('tabKeywords').classList.toggle('active', tab === 'keywords');
+  document.getElementById('tabUnderdogs').classList.toggle('active', tab === 'underdogs');
+  document.getElementById('panelKeywords').classList.toggle('active', tab === 'keywords');
+  document.getElementById('panelUnderdogs').classList.toggle('active', tab === 'underdogs');
+}
+
+// --- buscador de canales underdog ---
+const underdogStatusEl = document.getElementById('underdogStatus');
+function setUnderdogStatus(msg, isError){
+  underdogStatusEl.textContent = msg;
+  underdogStatusEl.className = isError ? 'error' : '';
+}
+
+document.getElementById('underdogBtn').onclick = runUnderdogSearch;
+document.getElementById('underdogQuery').addEventListener('keydown', e => { if(e.key === 'Enter') runUnderdogSearch(); });
+
+async function runUnderdogSearch(){
+  const q = document.getElementById('underdogQuery').value.trim();
+  if(!q){ setUnderdogStatus('Escribí un tema para buscar.', true); return; }
+
+  const usedToday = getUsageToday();
+  if(usedToday >= DAILY_LIMIT){
+    setUnderdogStatus(`Llegaste al límite de ${DAILY_LIMIT} búsquedas gratis por hoy. Volvé mañana.`, true);
+    return;
+  }
+
+  const btn = document.getElementById('underdogBtn');
+  btn.disabled = true;
+  setUnderdogStatus('Buscando canales...');
+  document.getElementById('underdogList').innerHTML = '';
+
+  try{
+    const res = await fetch(`/api/underdogs?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    if(!res.ok){ throw new Error(data.error || 'Error al buscar.'); }
+
+    if(!data.channels || data.channels.length === 0){
+      setUnderdogStatus('No se encontraron canales underdog claros para ese tema.', true);
+      btn.disabled = false;
+      return;
+    }
+
+    const remaining = DAILY_LIMIT - bumpUsageToday();
+    setUnderdogStatus(`Listo. ${data.channels.length} canales encontrados. (te quedan ${Math.max(remaining,0)} búsquedas gratis hoy)`);
+
+    const list = document.getElementById('underdogList');
+    list.innerHTML = data.channels.map(ch => `
+      <a class="underdog-card" href="https://youtube.com/watch?v=${ch.video.videoId}" target="_blank" rel="noopener">
+        <div class="underdog-ratio">${ch.ratio.toFixed(1)}x<span class="lbl">vistas/sub</span></div>
+        <img class="channel-thumb" src="${ch.channelThumb}" alt="" loading="lazy" />
+        <img class="video-thumb" src="${ch.video.thumb}" alt="" loading="lazy" />
+        <div class="body">
+          <div class="title">${ch.channelTitle.replace(/</g,'&lt;')}</div>
+          <div class="meta">
+            <span>${fmtViews(ch.subscribers)} subs</span>
+            <span class="views">${fmtViews(ch.video.views)} vistas</span>
+          </div>
+        </div>
+      </a>
+    `).join('');
+  }catch(err){
+    setUnderdogStatus('Error: ' + err.message, true);
+  }
+  btn.disabled = false;
 }
 </script>
 
