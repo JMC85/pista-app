@@ -335,289 +335,37 @@
       <input type="text" id="query" placeholder="ej: rutina de espalda en casa" autofocus />
       <button id="searchBtn">Buscar</button>
     </div>
-    <div id="status"></div>
-<div id="emptyHint" class="empty-state" style="max-width:640px;margin:28px auto 0;">
-  Escribí una idea de video y tocá <strong>Buscar</strong>.<br>
-  Pista te muestra qué tan buena oportunidad es y qué videos están rankeando ahora.
-  <div class="results" id="results">
-    <div class="panel">
-      <h3>Diagnóstico</h3>
-      <div class="meter-wrap">
-        <div class="meter">
-          <svg viewBox="0 0 100 100">
-            <path d="M 12 78 A 40 40 0 1 1 88 78" fill="none" stroke="#2a2d5c" stroke-width="9" stroke-linecap="round"/>
-            <path id="meterArc" d="M 12 78 A 40 40 0 1 1 88 78" fill="none" stroke="#f2a93b" stroke-width="9" stroke-linecap="round" stroke-dasharray="192" stroke-dashoffset="192"/>
-          </svg>
-          <div class="meter-label">
-            <span class="num" id="meterNum">--</span>
-            <span class="tag">OPORTUNIDAD</span>
+       <div id="status"></div>
+
+    <div id="emptyHint" class="empty-state" style="max-width:640px;margin:28px auto 0;">
+      Escribí una idea de video y tocá <strong>Buscar</strong>.<br>
+      Pista te muestra qué tan buena oportunidad es y qué videos están rankeando ahora.
+    </div>
+
+    <div class="results" id="results">
+      <div class="panel">
+        <h3>Diagnóstico</h3>
+        <div class="meter-wrap">
+          <div class="meter">
+            <svg viewBox="0 0 100 100">
+              <path d="M 12 78 A 40 40 0 1 1 88 78" fill="none" stroke="#2a2d5c" stroke-width="9" stroke-linecap="round"/>
+              <path id="meterArc" d="M 12 78 A 40 40 0 1 1 88 78" fill="none" stroke="#f2a93b" stroke-width="9" stroke-linecap="round" stroke-dasharray="192" stroke-dashoffset="192"/>
+            </svg>
+            <div class="meter-label">
+              <span class="num" id="meterNum">--</span>
+              <span class="tag">OPORTUNIDAD</span>
+            </div>
           </div>
         </div>
+        <div class="stat-row"><span class="k">Competencia</span><span class="v" id="statCompetition">--</span></div>
+        <div class="stat-row"><span class="k">Videos analizados</span><span class="v" id="statTotal">--</span></div>
+        <div class="stat-row"><span class="k">Vistas promedio</span><span class="v" id="statAvgViews">--</span></div>
+        <div class="stat-row"><span class="k">Vistas mediana</span><span class="v" id="statMedViews">--</span></div>
+        <div class="stat-row"><span class="k">Subidos últ. 6 meses</span><span class="v" id="statRecent">--</span></div>
+        <div class="verdict" id="verdict"></div>
+        <h3 style="margin-top:22px;">Tags populares</h3>
+        <div id="tagCloud" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
       </div>
-      <div class="stat-row"><span class="k">Competencia</span><span class="v" id="statCompetition">--</span></div>
-      <div class="stat-row"><span class="k">Videos analizados</span><span class="v" id="statTotal">--</span></div>
-      <div class="stat-row"><span class="k">Vistas promedio</span><span class="v" id="statAvgViews">--</span></div>
-      <div class="stat-row"><span class="k">Vistas mediana</span><span class="v" id="statMedViews">--</span></div>
-      <div class="stat-row"><span class="k">Subidos últ. 6 meses</span><span class="v" id="statRecent">--</span></div>
-      <div class="verdict" id="verdict"></div>
-      <h3 style="margin-top:22px;">Tags populares</h3>
-      <div id="tagCloud" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      <div class="video-list" id="videoList"></div>
     </div>
-    <div class="video-list" id="videoList"></div>
-  </div>
-  </div>
-
-  <div class="tab-panel" id="panelUnderdogs">
-    <div class="hero">
-      <div class="eyebrow">Canales underdog</div>
-      <h2>Encontrá canales chicos con vistas grandes</h2>
-      <p>Buscá un tema y Pista te muestra canales con pocos suscriptores que igual están consiguiendo muchas vistas — una señal de que el formato o ángulo está funcionando, más allá del tamaño del canal.</p>
-      <div class="search-row">
-        <input type="text" id="underdogQuery" placeholder="ej: rutina de espalda en casa" />
-        <button id="underdogBtn">Buscar</button>
-      </div>
-      <div id="underdogStatus"></div>
-      <div class="empty-state">Nota: es una foto del momento actual (vistas del mejor video vs. suscriptores), no un histórico de crecimiento en el tiempo.</div>
-    </div>
-    <div id="underdogList" style="max-width:760px;margin:20px auto 0;"></div>
-  </div>
-</main>
-
-<footer>PISTA · prototipo · datos en vivo desde YouTube Data API</footer>
-
-<script>
-const statusEl = document.getElementById('status');
-const DAILY_LIMIT = 8;
-
-function getUsageToday(){
-  const today = new Date().toISOString().slice(0,10);
-  try{
-    const raw = JSON.parse(localStorage.getItem('pista_usage') || '{}');
-    return raw.date === today ? raw.count : 0;
-  }catch(e){ return 0; }
-}
-function bumpUsageToday(){
-  const today = new Date().toISOString().slice(0,10);
-  const current = getUsageToday();
-  try{ localStorage.setItem('pista_usage', JSON.stringify({date: today, count: current + 1})); }catch(e){}
-  return current + 1;
-}
-function setStatus(msg, isError){
-  statusEl.textContent = msg;
-  statusEl.className = isError ? 'error' : '';
-}
-
-function fmtViews(n){
-  if(n >= 1000000) return (n/1000000).toFixed(1).replace('.0','') + 'M';
-  if(n >= 1000) return (n/1000).toFixed(1).replace('.0','') + 'K';
-  return String(n);
-}
-function fmtDate(iso){
-  const d = new Date(iso);
-  return d.toLocaleDateString('es-AR', {year:'numeric', month:'short', day:'numeric'});
-}
-function median(arr){
-  const s = [...arr].sort((a,b)=>a-b);
-  const mid = Math.floor(s.length/2);
-  return s.length % 2 !== 0 ? s[mid] : (s[mid-1]+s[mid])/2;
-}
-
-function daysSince(iso){
-  const days = (Date.now() - new Date(iso).getTime()) / (1000*60*60*24);
-  return Math.max(days, 1);
-}
-function fmtVelocity(views, publishedAt){
-  const perDay = Math.round(views / daysSince(publishedAt));
-  return fmtViews(perDay) + '/día';
-}
-document.getElementById('query').addEventListener('keydown', e => { if(e.key === 'Enter') runSearch(); });
-
-async function runSearch(){
-  const q = document.getElementById('query').value.trim();
-  if(!q){ setStatus('Escribí un tema para buscar.', true); return; }
-
-  const usedToday = getUsageToday();
-  if(usedToday >= DAILY_LIMIT){
-    setStatus(`Llegaste al límite de ${DAILY_LIMIT} búsquedas gratis por hoy. Volvé mañana.`, true);
-    return;
-  }
-
-  const btn = document.getElementById('searchBtn');
-  btn.disabled = true;
-  setStatus('Buscando en YouTube...');
-  document.getElementById('results').classList.remove('show');
-
-  try{
-    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-    const data = await res.json();
-    if(!res.ok){ throw new Error(data.error || 'Error al buscar.'); }
-
-    if(!data.videos || data.videos.length === 0){
-      setStatus('No se encontraron videos para ese tema.', true);
-      btn.disabled = false;
-      return;
-    }
-
-    const videos = data.videos.sort((a,b) => b.views - a.views);
-    renderResults(q, data.totalResults, videos);
-    const remaining = DAILY_LIMIT - bumpUsageToday();
-    setStatus(`Listo. ${videos.length} videos analizados para "${q}". (te quedan ${Math.max(remaining,0)} búsquedas gratis hoy)`);
-  }catch(err){
-    setStatus('Error: ' + err.message, true);
-  }
-  btn.disabled = false;
-}
-
-function renderResults(query, totalResults, videos){
-  const views = videos.map(v => v.views);
-  const avg = Math.round(views.reduce((a,b)=>a+b,0) / views.length);
-  const med = Math.round(median(views));
-  const sixMonthsAgo = Date.now() - (1000*60*60*24*182);
-  const recentCount = videos.filter(v => new Date(v.publishedAt).getTime() > sixMonthsAgo).length;
-
-  // competition: based on total indexed results for the term (rough proxy)
-  const competitionScore = Math.min(100, Math.round((Math.log10(Math.max(totalResults,1)) / 7) * 100));
-  let competitionLabel = 'Baja';
-  if(competitionScore > 65) competitionLabel = 'Alta';
-  else if(competitionScore > 35) competitionLabel = 'Media';
-
-  // demand: based on median views, log-scaled
-  const demandScore = Math.min(100, Math.round((Math.log10(Math.max(med,1)) / 6.5) * 100));
-
-  // opportunity = demanda alta con competencia manejable
-  let opportunity = Math.round(demandScore * 0.65 + (100 - competitionScore) * 0.35);
-  opportunity = Math.max(3, Math.min(97, opportunity));
-
-  // meter arc: circumference of the drawn arc ~ 192 (matches stroke-dasharray above)
-  const arcLength = 192;
-  const offset = arcLength - (arcLength * opportunity / 100);
-  const meterArc = document.getElementById('meterArc');
-  meterArc.style.strokeDashoffset = offset;
-  meterArc.style.stroke = opportunity > 60 ? '#6fd4a0' : (opportunity > 35 ? '#f2a93b' : '#ff5d5d');
-  document.getElementById('meterNum').textContent = opportunity;
-
-  document.getElementById('statCompetition').textContent = `${competitionLabel} (${fmtViews(totalResults)} videos)`;
-  document.getElementById('statTotal').textContent = videos.length;
-  document.getElementById('statAvgViews').textContent = fmtViews(avg);
-  document.getElementById('statMedViews').textContent = fmtViews(med);
-  document.getElementById('statRecent').textContent = `${recentCount} de ${videos.length}`;
-
-  let verdictText = '';
-  if(opportunity > 60){
-    verdictText = `<b>Buena señal.</b> Hay demanda real y la competencia es manejable. Mirá qué ángulo no está cubierto por los videos de abajo.`;
-  } else if(opportunity > 35){
-    verdictText = `<b>Terreno mixto.</b> El tema funciona, pero vas a necesitar un ángulo o título más específico para destacar entre lo que ya existe.`;
-  } else {
-    verdictText = `<b>Cuesta arriba.</b> Mucha competencia establecida o poca demanda reciente. Probá un término más específico (long-tail) relacionado con "${query}".`;
-  }
-  document.getElementById('verdict').innerHTML = verdictText;
-
-  const list = document.getElementById('videoList');
-  list.innerHTML = videos.slice(0,15).map((v, i) => `
-    <a class="video-card" href="https://youtube.com/watch?v=${v.id}" target="_blank" rel="noopener">
-      <span class="rank">${i+1}</span>
-      <img src="${v.thumb}" alt="" loading="lazy" />
-      <div class="body">
-        <div class="title">${v.title.replace(/</g,'&lt;')}</div>
-        <div class="meta">
-          <span class="views">${fmtViews(v.views)} vistas</span>
-          <span class="velocity">↑ ${fmtVelocity(v.views, v.publishedAt)}</span>
-          <span>${v.channel.replace(/</g,'&lt;')}</span>
-          <span>${fmtDate(v.publishedAt)}</span>
-        </div>
-      </div>
-    </a>
-  `).join('');
-
-  document.getElementById('results').classList.add('show');
-
-  // --- tags populares ---
-  const tagCounts = {};
-  videos.forEach(v => (v.tags || []).forEach(t => {
-    const key = t.toLowerCase();
-    tagCounts[key] = (tagCounts[key] || 0) + 1;
-  }));
-  const topTags = Object.entries(tagCounts)
-    .sort((a,b) => b[1] - a[1])
-    .slice(0, 15);
-  const tagCloud = document.getElementById('tagCloud');
-  if(topTags.length === 0){
-    tagCloud.innerHTML = `<span class="tag-pill">Sin tags públicos para este tema</span>`;
-  } else {
-    tagCloud.innerHTML = topTags.map(([tag, count]) =>
-      `<span class="tag-pill">${tag.replace(/</g,'&lt;')} (${count})</span>`
-    ).join('');
-  }
-}
-
-// --- pestañas ---
-function switchTab(tab){
-  document.getElementById('tabKeywords').classList.toggle('active', tab === 'keywords');
-  document.getElementById('tabUnderdogs').classList.toggle('active', tab === 'underdogs');
-  document.getElementById('panelKeywords').classList.toggle('active', tab === 'keywords');
-  document.getElementById('panelUnderdogs').classList.toggle('active', tab === 'underdogs');
-}
-
-// --- buscador de canales underdog ---
-const underdogStatusEl = document.getElementById('underdogStatus');
-function setUnderdogStatus(msg, isError){
-  underdogStatusEl.textContent = msg;
-  underdogStatusEl.className = isError ? 'error' : '';
-}
-
-document.getElementById('underdogBtn').onclick = runUnderdogSearch;
-document.getElementById('underdogQuery').addEventListener('keydown', e => { if(e.key === 'Enter') runUnderdogSearch(); });
-
-async function runUnderdogSearch(){
-  const q = document.getElementById('underdogQuery').value.trim();
-  if(!q){ setUnderdogStatus('Escribí un tema para buscar.', true); return; }
-
-  const usedToday = getUsageToday();
-  if(usedToday >= DAILY_LIMIT){
-    setUnderdogStatus(`Llegaste al límite de ${DAILY_LIMIT} búsquedas gratis por hoy. Volvé mañana.`, true);
-    return;
-  }
-
-  const btn = document.getElementById('underdogBtn');
-  btn.disabled = true;
-  setUnderdogStatus('Buscando canales...');
-  document.getElementById('underdogList').innerHTML = '';
-
-  try{
-    const res = await fetch(`/api/underdogs?q=${encodeURIComponent(q)}`);
-    const data = await res.json();
-    if(!res.ok){ throw new Error(data.error || 'Error al buscar.'); }
-
-    if(!data.channels || data.channels.length === 0){
-      setUnderdogStatus('No se encontraron canales underdog claros para ese tema.', true);
-      btn.disabled = false;
-      return;
-    }
-
-    const remaining = DAILY_LIMIT - bumpUsageToday();
-    setUnderdogStatus(`Listo. ${data.channels.length} canales encontrados. (te quedan ${Math.max(remaining,0)} búsquedas gratis hoy)`);
-
-    const list = document.getElementById('underdogList');
-    list.innerHTML = data.channels.map(ch => `
-      <a class="underdog-card" href="https://youtube.com/watch?v=${ch.video.videoId}" target="_blank" rel="noopener">
-        <div class="underdog-ratio">${ch.ratio.toFixed(1)}x<span class="lbl">vistas/sub</span></div>
-        <img class="channel-thumb" src="${ch.channelThumb}" alt="" loading="lazy" />
-        <img class="video-thumb" src="${ch.video.thumb}" alt="" loading="lazy" />
-        <div class="body">
-          <div class="title">${ch.channelTitle.replace(/</g,'&lt;')}</div>
-          <div class="meta">
-            <span>${fmtViews(ch.subscribers)} subs</span>
-            <span class="views">${fmtViews(ch.video.views)} vistas</span>
-          </div>
-        </div>
-      </a>
-    `).join('');
-  }catch(err){
-    setUnderdogStatus('Error: ' + err.message, true);
-  }
-  btn.disabled = false;
-}
-</script>
-
-</body>
-</html>
+  </div>   <!-- cierra panelKeywords -->
