@@ -8,22 +8,31 @@ export default async function handler(req, res) {
 
   try {
     const { url } = req.body || {};
-    if (!url) return res.status(400).json({ error: 'Falta el link del video.' });
+    if (!url) {
+      return res.status(400).json({ error: 'Falta el link del video.' });
+    }
 
-    const match = url.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
-    if (!match) return res.status(400).json({ error: 'Link de YouTube inválido.' });
+    // Extraer video ID
+    const match = url.match(/(?:v=|\/|youtu\.be\/)([0-9A-Za-z_-]{11})/);
+    if (!match) {
+      return res.status(400).json({ error: 'Link de YouTube inválido.' });
+    }
     const videoId = match[1];
 
-    const YT_KEY = process.env.YOUTUBE_API_KEY;
-    const CLAUDE_KEY = process.env.ANTHROPIC_API_KEY;
+    const API_KEY = process.env.YOUTUBE_API_KEY;
+    if (!API_KEY) {
+      return res.status(500).json({ error: 'Falta YOUTUBE_API_KEY en el servidor.' });
+    }
 
-    if (!YT_KEY) return res.status(500).json({ error: 'Falta YOUTUBE_API_KEY' });
-    if (!CLAUDE_KEY) return res.status(500).json({ error: 'Falta ANTHROPIC_API_KEY' });
-
-    // Datos del video
-    const ytRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoId}&key=${YT_KEY}`);
+    // Pedir datos del video
+    const ytUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoId}&key=${API_KEY}`;
+    const ytRes = await fetch(ytUrl);
     const ytData = await ytRes.json();
-    
+
+    if (ytData.error) {
+      return res.status(500).json({ error: ytData.error.message });
+    }
+
     if (!ytData.items || ytData.items.length === 0) {
       return res.status(404).json({ error: 'Video no encontrado.' });
     }
@@ -32,68 +41,40 @@ export default async function handler(req, res) {
     const snippet = video.snippet;
     const stats = video.statistics;
 
-    const prompt = `Sos un experto en YouTube SEO y crecimiento de canales. Analizá este video y dame un reporte claro, útil y accionable en español:
+    const views = parseInt(stats.viewCount || '0', 10);
+    const likes = parseInt(stats.likeCount || '0', 10);
+    const comments = parseInt(stats.commentCount || '0', 10);
+    const tags = snippet.tags || [];
 
-Título: ${snippet.title}
-Canal: ${snippet.channelTitle}
-Descripción: ${(snippet.description || 'Sin descripción').substring(0, 1200)}
-Tags: ${(snippet.tags || []).join(', ') || 'Sin tags'}
-Vistas: ${stats.viewCount || 0}
-Likes: ${stats.likeCount || 0}
-Comentarios: ${stats.commentCount || 0}
-Fecha de publicación: ${snippet.publishedAt}
+    // Cálculos simples
+    const likeRatio = views > 0 ? ((likes / views) * 100).toFixed(2) : 0;
+    const commentRatio = views > 0 ? ((comments / views) * 100).toFixed(3) : 0;
 
-Respondé usando exactamente este formato en markdown:
+    // Diagnóstico básico
+    let engagement = 'Bajo';
+    if (likeRatio > 4) engagement = 'Excelente';
+    else if (likeRatio > 2.5) engagement = 'Bueno';
+    else if (likeRatio > 1.5) engagement = 'Aceptable';
 
-### Resumen rápido
-(2-3 oraciones sobre el performance general)
-
-### Fortalezas
-- punto 1
-- punto 2
-
-### Debilidades / Oportunidades de mejora
-- punto 1
-- punto 2
-
-### Título sugerido mejorado
-(un título más atractivo y con mejor potencial de CTR)
-
-### Tags recomendados
-tag1, tag2, tag3, tag4, tag5, tag6, tag7, tag8
-
-### Próximos pasos recomendados
-1. ...
-2. ...
-3. ...`;
-
-    const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': CLAUDE_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 1200,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-
-    const claudeData = await claudeRes.json();
-    
-    if (claudeData.error) {
-      return res.status(500).json({ error: claudeData.error.message || 'Error de Claude' });
-    }
-
-    const analysis = claudeData.content?.[0]?.text || 'No se pudo generar el análisis.';
+    let tagStatus = tags.length === 0 ? 'Sin tags (malo)' : 
+                    tags.length < 5 ? 'Pocos tags' : 
+                    tags.length > 15 ? 'Muchos tags' : 'Cantidad razonable de tags';
 
     return res.status(200).json({
       title: snippet.title,
       channel: snippet.channelTitle,
-      views: stats.viewCount || 0,
-      analysis
+      publishedAt: snippet.publishedAt,
+      description: snippet.description || '',
+      thumb: snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url,
+      views,
+      likes,
+      comments,
+      likeRatio,
+      commentRatio,
+      engagement,
+      tags,
+      tagStatus,
+      tagCount: tags.length
     });
 
   } catch (err) {
