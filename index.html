@@ -200,7 +200,6 @@
 </div>
 
 <main>
-  <!-- Pestaña 1: Investigar tema -->
   <div class="tab-panel active" id="panelKeywords">
     <div class="hero">
       <div class="eyebrow">Investigación de palabras clave</div>
@@ -245,7 +244,6 @@
     </div>
   </div>
 
-  <!-- Pestaña 2: Canales underdog -->
   <div class="tab-panel" id="panelUnderdogs">
     <div class="hero">
       <div class="eyebrow">Canales underdog</div>
@@ -261,7 +259,6 @@
     <div id="underdogList" style="max-width:760px;margin:20px auto 0;"></div>
   </div>
 
-  <!-- Pestaña 3: Analizar video (gratis) -->
   <div class="tab-panel" id="panelAnalyze">
     <div class="hero">
       <div class="eyebrow">Análisis de video (gratis)</div>
@@ -393,11 +390,11 @@ function renderResults(query, totalResults, videos){
 
   let verdictText = '';
   if(opportunity > 60){
-    verdictText = `<b>Buena señal.</b> Hay demanda real y la competencia es manejable. Mirá qué ángulo no está cubierto por los videos de abajo.`;
+    verdictText = `<b>Buena señal.</b> Hay demanda real y la competencia es manejable.`;
   } else if(opportunity > 35){
-    verdictText = `<b>Terreno mixto.</b> El tema funciona, pero vas a necesitar un ángulo o título más específico para destacar.`;
+    verdictText = `<b>Terreno mixto.</b> El tema funciona, pero necesitás un ángulo más específico.`;
   } else {
-    verdictText = `<b>Cuesta arriba.</b> Mucha competencia o poca demanda. Probá un término más específico relacionado con "${query}".`;
+    verdictText = `<b>Cuesta arriba.</b> Mucha competencia o poca demanda. Probá un término más específico.`;
   }
   document.getElementById('verdict').innerHTML = verdictText;
 
@@ -427,11 +424,152 @@ function renderResults(query, totalResults, videos){
   const topTags = Object.entries(tagCounts).sort((a,b) => b[1] - a[1]).slice(0, 15);
   const tagCloud = document.getElementById('tagCloud');
   tagCloud.innerHTML = topTags.length === 0 
-    ? `<span class="tag-pill">Sin tags públicos para este tema</span>`
+    ? `<span class="tag-pill">Sin tags públicos</span>`
     : topTags.map(([tag, count]) => `<span class="tag-pill">${tag.replace(/</g,'&lt;')} (${count})</span>`).join('');
 }
 
 function switchTab(tab){
   document.getElementById('tabKeywords').classList.toggle('active', tab === 'keywords');
   document.getElementById('tabUnderdogs').classList.toggle('active', tab === 'underdogs');
-  document
+  document.getElementById('tabAnalyze').classList.toggle('active', tab === 'analyze');
+  
+  document.getElementById('panelKeywords').classList.toggle('active', tab === 'keywords');
+  document.getElementById('panelUnderdogs').classList.toggle('active', tab === 'underdogs');
+  document.getElementById('panelAnalyze').classList.toggle('active', tab === 'analyze');
+}
+
+const underdogStatusEl = document.getElementById('underdogStatus');
+function setUnderdogStatus(msg, isError){
+  underdogStatusEl.textContent = msg;
+  underdogStatusEl.className = isError ? 'error' : '';
+}
+
+document.getElementById('underdogBtn').onclick = runUnderdogSearch;
+document.getElementById('underdogQuery').addEventListener('keydown', e => { if(e.key === 'Enter') runUnderdogSearch(); });
+
+async function runUnderdogSearch(){
+  const q = document.getElementById('underdogQuery').value.trim();
+  if(!q){ setUnderdogStatus('Escribí un tema para buscar.', true); return; }
+
+  const usedToday = getUsageToday();
+  if(usedToday >= DAILY_LIMIT){
+    setUnderdogStatus(`Llegaste al límite de ${DAILY_LIMIT} búsquedas gratis por hoy. Volvé mañana.`, true);
+    return;
+  }
+
+  const btn = document.getElementById('underdogBtn');
+  btn.disabled = true;
+  setUnderdogStatus('Buscando canales...');
+  document.getElementById('underdogList').innerHTML = '';
+
+  try{
+    const res = await fetch(`/api/underdogs?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    if(!res.ok){ throw new Error(data.error || 'Error al buscar.'); }
+
+    if(!data.channels || data.channels.length === 0){
+      setUnderdogStatus('No se encontraron canales underdog claros.', true);
+      btn.disabled = false;
+      return;
+    }
+
+    const remaining = DAILY_LIMIT - bumpUsageToday();
+    setUnderdogStatus(`Listo. ${data.channels.length} canales encontrados. (te quedan ${Math.max(remaining,0)} hoy)`);
+
+    document.getElementById('underdogList').innerHTML = data.channels.map(ch => `
+      <a class="underdog-card" href="https://youtube.com/watch?v=${ch.video.videoId}" target="_blank" rel="noopener">
+        <div class="underdog-ratio">${ch.ratio.toFixed(1)}x<span class="lbl">vistas/sub</span></div>
+        <img class="channel-thumb" src="${ch.channelThumb}" alt="" loading="lazy" />
+        <img class="video-thumb" src="${ch.video.thumb}" alt="" loading="lazy" />
+        <div class="body">
+          <div class="title">${ch.channelTitle.replace(/</g,'&lt;')}</div>
+          <div class="meta">
+            <span>${fmtViews(ch.subscribers)} subs</span>
+            <span class="views">${fmtViews(ch.video.views)} vistas</span>
+          </div>
+        </div>
+      </a>
+    `).join('');
+  }catch(err){
+    setUnderdogStatus('Error: ' + err.message, true);
+  }
+  btn.disabled = false;
+}
+
+document.getElementById('analyzeBtn').onclick = runAnalyze;
+document.getElementById('analyzeUrl').addEventListener('keydown', e => {
+  if (e.key === 'Enter') runAnalyze();
+});
+
+async function runAnalyze() {
+  const url = document.getElementById('analyzeUrl').value.trim();
+  const statusEl = document.getElementById('analyzeStatus');
+  const resultEl = document.getElementById('analyzeResult');
+  const btn = document.getElementById('analyzeBtn');
+
+  if (!url) {
+    statusEl.textContent = 'Pegá un link de YouTube.';
+    statusEl.className = 'error';
+    return;
+  }
+
+  statusEl.textContent = 'Analizando video...';
+  statusEl.className = '';
+  resultEl.style.display = 'none';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    const data = await res.json();
+    
+    if (!res.ok) throw new Error(data.error || 'Error al analizar');
+
+    const date = new Date(data.publishedAt).toLocaleDateString('es-AR', {
+      year: 'numeric', month: 'long', day: 'numeric'
+    });
+
+    resultEl.innerHTML = `
+      <div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;">
+        <img src="${data.thumb}" style="width:160px;border-radius:8px;" />
+        <div>
+          <h3 style="margin:0 0 6px;font-size:16px;">${data.title.replace(/</g,'&lt;')}</h3>
+          <div style="color:var(--muted);font-size:13px;">${data.channel} · ${date}</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+        <div class="stat-row" style="border:none;padding:8px 0;"><span class="k">Vistas</span><span class="v">${Number(data.views).toLocaleString()}</span></div>
+        <div class="stat-row" style="border:none;padding:8px 0;"><span class="k">Likes</span><span class="v">${Number(data.likes).toLocaleString()}</span></div>
+        <div class="stat-row" style="border:none;padding:8px 0;"><span class="k">Comentarios</span><span class="v">${Number(data.comments).toLocaleString()}</span></div>
+        <div class="stat-row" style="border:none;padding:8px 0;"><span class="k">Ratio likes</span><span class="v">${data.likeRatio}%</span></div>
+      </div>
+
+      <div class="verdict" style="margin-bottom:18px;">
+        <b>Engagement:</b> ${data.engagement}<br>
+        <b>Tags:</b> ${data.tagStatus} (${data.tagCount} tags)
+      </div>
+
+      <h3 style="margin:0 0 10px;">Tags del video</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        ${data.tags.length === 0 
+          ? '<span class="tag-pill">Este video no tiene tags públicos</span>' 
+          : data.tags.map(t => `<span class="tag-pill">${t.replace(/</g,'&lt;')}</span>`).join('')}
+      </div>
+    `;
+    
+    resultEl.style.display = 'block';
+    statusEl.textContent = 'Análisis listo ✓';
+  } catch (err) {
+    statusEl.textContent = 'Error: ' + err.message;
+    statusEl.className = 'error';
+  }
+
+  btn.disabled = false;
+}
+</script>
+</body>
+</html>
