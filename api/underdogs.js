@@ -1,10 +1,7 @@
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Content-Type', 'application/json');
+// Vercel Serverless Function: busca canales "underdog" — pocos suscriptores, vistas altas.
 
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Método no permitido' });
-  }
+module.exports = async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
 
   try {
     const q = (req.query.q || '').trim();
@@ -17,7 +14,6 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'El servidor no tiene configurada la clave de YouTube.' });
     }
 
-    // Buscamos videos ordenados por vistas
     const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&order=viewCount&maxResults=50&relevanceLanguage=es&q=${encodeURIComponent(q)}&key=${API_KEY}`;
     const searchRes = await fetch(searchUrl);
     const searchData = await searchRes.json();
@@ -39,12 +35,10 @@ export default async function handler(req, res) {
     const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoIds}&key=${API_KEY}`;
     const videosRes = await fetch(videosUrl);
     const videosData = await videosRes.json();
-
     if (videosData.error) {
       return res.status(500).json({ error: videosData.error.message });
     }
 
-    // Mejor video por canal
     const bestVideoByChannel = {};
     videosData.items.forEach(v => {
       const channelId = v.snippet.channelId;
@@ -68,7 +62,6 @@ export default async function handler(req, res) {
     const channelsUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelIds.join(',')}&key=${API_KEY}`;
     const channelsRes = await fetch(channelsUrl);
     const channelsData = await channelsRes.json();
-
     if (channelsData.error) {
       return res.status(500).json({ error: channelsData.error.message });
     }
@@ -94,4 +87,4 @@ export default async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
-}
+};
