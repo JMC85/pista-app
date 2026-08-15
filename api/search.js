@@ -1,10 +1,7 @@
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Content-Type', 'application/json');
+// Vercel Serverless Function: hace las llamadas a YouTube con la clave guardada en el servidor.
 
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Método no permitido' });
-  }
+module.exports = async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
 
   try {
     const q = (req.query.q || '').trim();
@@ -60,4 +57,4 @@ export default async function handler(req, res) {
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
-}
+};
