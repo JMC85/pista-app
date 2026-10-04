@@ -320,32 +320,49 @@ function getUsageToday(){
     return raw.date === today ? raw.count : 0;
   }catch(e){ return 0; }
 }
+
 function bumpUsageToday(){
   const today = new Date().toISOString().slice(0,10);
   const current = getUsageToday();
   try{ localStorage.setItem('pista_usage', JSON.stringify({date: today, count: current + 1})); }catch(e){}
   return current + 1;
 }
+
 function setStatus(msg, isError){
   statusEl.textContent = msg;
   statusEl.className = isError ? 'error' : '';
 }
+
+/* Seguridad: escapa contenido dinámico antes de insertarlo dentro de HTML. */
+function escapeHTML(value){
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 function fmtViews(n){
   if(n >= 1000000) return (n/1000000).toFixed(1).replace('.0','') + 'M';
   if(n >= 1000) return (n/1000).toFixed(1).replace('.0','') + 'K';
   return String(n);
 }
+
 function fmtDate(iso){
   return new Date(iso).toLocaleDateString('es-AR', {year:'numeric', month:'short', day:'numeric'});
 }
+
 function median(arr){
   const s = [...arr].sort((a,b)=>a-b);
   const mid = Math.floor(s.length/2);
   return s.length % 2 !== 0 ? s[mid] : (s[mid-1]+s[mid])/2;
 }
+
 function daysSince(iso){
   return Math.max((Date.now() - new Date(iso).getTime()) / (1000*60*60*24), 1);
 }
+
 function fmtVelocity(views, publishedAt){
   return fmtViews(Math.round(views / daysSince(publishedAt))) + '/día';
 }
@@ -428,21 +445,23 @@ function renderResults(query, totalResults, videos){
   } else if(opportunity > 35){
     verdictText = `<b>Terreno mixto.</b> El tema funciona, pero vas a necesitar un ángulo o título más específico para destacar entre lo que ya existe.`;
   } else {
-    verdictText = `<b>Cuesta arriba.</b> Mucha competencia establecida o poca demanda reciente. Probá un término más específico (long-tail) relacionado con "${query}".`;
+    verdictText = `<b>Cuesta arriba.</b> Mucha competencia establecida o poca demanda reciente. Probá un término más específico (long-tail) relacionado con "${escapeHTML(query)}".`;
   }
+
   document.getElementById('verdict').innerHTML = verdictText;
 
   const list = document.getElementById('videoList');
+
   list.innerHTML = videos.slice(0,15).map((v, i) => `
-    <a class="video-card" href="https://youtube.com/watch?v=${v.id}" target="_blank" rel="noopener">
+    <a class="video-card" href="https://youtube.com/watch?v=${encodeURIComponent(v.id)}" target="_blank" rel="noopener">
       <span class="rank">${i+1}</span>
-      <img src="${v.thumb}" alt="" loading="lazy" />
+      <img src="${escapeHTML(v.thumb)}" alt="" loading="lazy" />
       <div class="body">
-        <div class="title">${v.title.replace(/</g,'&lt;')}</div>
+        <div class="title">${escapeHTML(v.title)}</div>
         <div class="meta">
           <span class="views">${fmtViews(v.views)} vistas</span>
           <span class="velocity">↑ ${fmtVelocity(v.views, v.publishedAt)}</span>
-          <span>${v.channel.replace(/</g,'&lt;')}</span>
+          <span>${escapeHTML(v.channel)}</span>
           <span>${fmtDate(v.publishedAt)}</span>
         </div>
       </div>
@@ -453,16 +472,18 @@ function renderResults(query, totalResults, videos){
 
   const tagCounts = {};
   videos.forEach(v => (v.tags || []).forEach(t => {
-    const key = t.toLowerCase();
+    const key = String(t).toLowerCase();
     tagCounts[key] = (tagCounts[key] || 0) + 1;
   }));
+
   const topTags = Object.entries(tagCounts).sort((a,b) => b[1] - a[1]).slice(0, 15);
   const tagCloud = document.getElementById('tagCloud');
+
   if(topTags.length === 0){
     tagCloud.innerHTML = `<span class="tag-pill">Sin tags públicos para este tema</span>`;
   } else {
     tagCloud.innerHTML = topTags.map(([tag, count]) =>
-      `<span class="tag-pill">${tag.replace(/</g,'&lt;')} (${count})</span>`
+      `<span class="tag-pill">${escapeHTML(tag)} (${count})</span>`
     ).join('');
   }
 }
@@ -479,10 +500,12 @@ function switchTab(tab){
 
 // --- buscador de canales underdog ---
 const underdogStatusEl = document.getElementById('underdogStatus');
+
 function setUnderdogStatus(msg, isError){
   underdogStatusEl.textContent = msg;
   underdogStatusEl.className = isError ? 'error' : '';
 }
+
 document.getElementById('underdogBtn').onclick = runUnderdogSearch;
 document.getElementById('underdogQuery').addEventListener('keydown', e => { if(e.key === 'Enter') runUnderdogSearch(); });
 
@@ -516,13 +539,14 @@ async function runUnderdogSearch(){
     setUnderdogStatus(`Listo. ${data.channels.length} canales encontrados. (te quedan ${Math.max(remaining,0)} hoy)`);
 
     const list = document.getElementById('underdogList');
+
     list.innerHTML = data.channels.map(ch => `
-      <a class="underdog-card" href="https://youtube.com/watch?v=${ch.video.videoId}" target="_blank" rel="noopener">
-        <div class="underdog-ratio">${ch.ratio.toFixed(1)}x<span class="lbl">vistas/sub</span></div>
-        <img class="channel-thumb" src="${ch.channelThumb}" alt="" loading="lazy" />
-        <img class="video-thumb" src="${ch.video.thumb}" alt="" loading="lazy" />
+      <a class="underdog-card" href="https://youtube.com/watch?v=${encodeURIComponent(ch.video.videoId)}" target="_blank" rel="noopener">
+        <div class="underdog-ratio">${Number(ch.ratio).toFixed(1)}x<span class="lbl">vistas/sub</span></div>
+        <img class="channel-thumb" src="${escapeHTML(ch.channelThumb)}" alt="" loading="lazy" />
+        <img class="video-thumb" src="${escapeHTML(ch.video.thumb)}" alt="" loading="lazy" />
         <div class="body">
-          <div class="title">${ch.channelTitle.replace(/</g,'&lt;')}</div>
+          <div class="title">${escapeHTML(ch.channelTitle)}</div>
           <div class="meta">
             <span>${fmtViews(ch.subscribers)} subs</span>
             <span class="views">${fmtViews(ch.video.views)} vistas</span>
@@ -533,23 +557,31 @@ async function runUnderdogSearch(){
   }catch(err){
     setUnderdogStatus('Error: ' + err.message, true);
   }
+
   btn.disabled = false;
 }
 
 // --- analizar video individual ---
 const analyzeStatusEl = document.getElementById('analyzeStatus');
+
 function setAnalyzeStatus(msg, isError){
   analyzeStatusEl.textContent = msg;
   analyzeStatusEl.className = isError ? 'error' : '';
 }
+
 document.getElementById('analyzeBtn').onclick = runAnalyze;
 document.getElementById('analyzeUrl').addEventListener('keydown', e => { if(e.key === 'Enter') runAnalyze(); });
 
 async function runAnalyze(){
   const url = document.getElementById('analyzeUrl').value.trim();
-  if(!url){ setAnalyzeStatus('Pegá el link de un video.', true); return; }
+
+  if(!url){
+    setAnalyzeStatus('Pegá el link de un video.', true);
+    return;
+  }
 
   const usedToday = getUsageToday();
+
   if(usedToday >= DAILY_LIMIT){
     setAnalyzeStatus(`Llegaste al límite de ${DAILY_LIMIT} búsquedas gratis por hoy. Volvé mañana.`, true);
     return;
@@ -563,42 +595,58 @@ async function runAnalyze(){
   try{
     const res = await fetch(`/api/analyze?url=${encodeURIComponent(url)}`);
     const data = await res.json();
-    if(!res.ok){ throw new Error(data.error || 'Error al analizar.'); }
+
+    if(!res.ok){
+      throw new Error(data.error || 'Error al analizar.');
+    }
 
     const remaining = DAILY_LIMIT - bumpUsageToday();
+
     setAnalyzeStatus(`Listo. (te quedan ${Math.max(remaining,0)} búsquedas gratis hoy)`);
 
     const box = document.getElementById('analyzeResult');
     box.style.display = 'block';
+
     box.innerHTML = `
-      <h3 style="margin-top:0;">${data.title.replace(/</g,'&lt;')}</h3>
-      <div class="analyze-stat"><span class="k">Canal</span><span class="v">${data.channel.replace(/</g,'&lt;')}</span></div>
+      <h3 style="margin-top:0;">${escapeHTML(data.title)}</h3>
+      <div class="analyze-stat"><span class="k">Canal</span><span class="v">${escapeHTML(data.channel)}</span></div>
       <div class="analyze-stat"><span class="k">Vistas</span><span class="v">${fmtViews(data.views)}</span></div>
       <div class="analyze-stat"><span class="k">Likes</span><span class="v">${fmtViews(data.likes)}</span></div>
       <div class="analyze-stat"><span class="k">Comentarios</span><span class="v">${fmtViews(data.comments)}</span></div>
-      <div class="analyze-stat"><span class="k">Tasa de engagement</span><span class="v">${data.engagementRate}%</span></div>
+      <div class="analyze-stat"><span class="k">Tasa de engagement</span><span class="v">${escapeHTML(data.engagementRate)}%</span></div>
       <div class="analyze-stat"><span class="k">Velocidad</span><span class="v">${fmtVelocity(data.views, data.publishedAt)}</span></div>
       <div class="analyze-stat"><span class="k">Publicado</span><span class="v">${fmtDate(data.publishedAt)}</span></div>
       <h3 style="margin-top:22px;">Tags del video</h3>
       <div style="display:flex;flex-wrap:wrap;gap:6px;">
-        ${(data.tags && data.tags.length) ? data.tags.slice(0,20).map(t => `<span class="tag-pill">${t.replace(/</g,'&lt;')}</span>`).join('') : '<span class="tag-pill">Sin tags públicos</span>'}
+        ${(data.tags && data.tags.length)
+          ? data.tags.slice(0,20).map(t => `<span class="tag-pill">${escapeHTML(t)}</span>`).join('')
+          : '<span class="tag-pill">Sin tags públicos</span>'}
       </div>
     `;
   }catch(err){
     setAnalyzeStatus('Error: ' + err.message, true);
   }
+
   btn.disabled = false;
 }
 
 // --- formulario de email ---
 const emailForm = document.getElementById('emailForm');
+
 if(emailForm){
   emailForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+
     const msgEl = document.getElementById('formMessage');
     const fd = new FormData(emailForm);
+
     try{
-      const res = await fetch(emailForm.action, { method: 'POST', body: fd, headers: { 'Accept': 'application/json' } });
+      const res = await fetch(emailForm.action, {
+        method: 'POST',
+        body: fd,
+        headers: { 'Accept': 'application/json' }
+      });
+
       if(res.ok){
         msgEl.textContent = '¡Listo! Te vamos a avisar.';
         emailForm.reset();
