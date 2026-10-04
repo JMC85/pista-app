@@ -1,3 +1,4 @@
+```js
 const { checkAndIncrement } = require('./_rateLimit');
 
 const ALLOWED_ORIGIN = 'https://pista-app-seven.vercel.app';
@@ -18,7 +19,6 @@ function extractVideoId(url) {
   const m = url.match(
     /(?:v=|\/videos\/|embed\/|youtu\.be\/|\/v\/|\/shorts\/)([a-zA-Z0-9_-]{11})/
   );
-
   return m ? m[1] : null;
 }
 
@@ -38,19 +38,22 @@ module.exports = async (req, res) => {
       });
     }
 
-    const limit = await checkAndIncrement(req);
-
-    if (!limit.allowed) {
-      return res.status(429).json({
-        error: 'Llegaste al límite de 8 búsquedas gratis por hoy. Volvé mañana.'
-      });
-    }
-
+    // Validamos primero el link para no consumir una búsqueda
+    // cuando la URL no es un video de YouTube válido.
     const videoId = extractVideoId(url);
 
     if (!videoId) {
       return res.status(400).json({
         error: 'No se pudo reconocer un link de YouTube válido.'
+      });
+    }
+
+    // El límite se aplica solamente después de validar la entrada.
+    const limit = await checkAndIncrement(req);
+
+    if (!limit.allowed) {
+      return res.status(429).json({
+        error: 'Llegaste al límite de 8 búsquedas gratis por hoy. Volvé mañana.'
       });
     }
 
@@ -90,20 +93,9 @@ module.exports = async (req, res) => {
       });
     }
 
-    const views = parseInt(
-      item.statistics.viewCount || '0',
-      10
-    );
-
-    const likes = parseInt(
-      item.statistics.likeCount || '0',
-      10
-    );
-
-    const comments = parseInt(
-      item.statistics.commentCount || '0',
-      10
-    );
+    const views = parseInt(item.statistics.viewCount || '0', 10);
+    const likes = parseInt(item.statistics.likeCount || '0', 10);
+    const comments = parseInt(item.statistics.commentCount || '0', 10);
 
     const engagementRate =
       views > 0
@@ -122,10 +114,10 @@ module.exports = async (req, res) => {
       remaining: limit.remaining,
       premium: limit.premium
     });
-
   } catch (err) {
     return res.status(500).json({
       error: err.message
     });
   }
 };
+```
