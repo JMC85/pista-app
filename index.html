@@ -185,6 +185,154 @@
   .analyze-stat:first-of-type{border-top:none;}
   .analyze-stat .k{color:var(--muted);}
   .analyze-stat .v{font-family:'IBM Plex Mono',monospace;font-weight:600;}
+
+  /* Responsive móvil: evita zoom-out y desbordamiento horizontal */
+  html, body{width:100%;overflow-x:hidden;}
+
+  @media (max-width:760px){
+    header{
+      padding:20px 16px 10px;
+    }
+
+    main{
+      padding-left:16px;
+      padding-right:16px;
+    }
+
+    .tabs{
+      padding-left:12px;
+      padding-right:12px;
+      gap:6px;
+    }
+
+    .tab-btn{
+      padding:8px 12px;
+      font-size:11px;
+    }
+
+    .hero{
+      margin:38px auto 28px;
+    }
+
+    .hero h2{
+      font-size:clamp(26px,8vw,36px);
+    }
+
+    .hero p{
+      font-size:14px;
+    }
+
+    .search-row{
+      flex-direction:column;
+      width:100%;
+      max-width:640px;
+      gap:10px;
+    }
+
+    .search-row input[type=text]{
+      width:100%;
+      min-width:0;
+    }
+
+    .search-row button{
+      width:100%;
+      min-height:48px;
+      padding:12px 20px;
+    }
+
+    .results{
+      width:100%;
+      max-width:100%;
+      grid-template-columns:1fr;
+      gap:14px;
+      margin-top:30px;
+    }
+
+    .panel{
+      padding:18px;
+    }
+
+    .video-card{
+      width:100%;
+      max-width:100%;
+      gap:9px;
+      padding:10px;
+    }
+
+    .video-card img{
+      width:92px;
+      height:52px;
+    }
+
+    .video-card .rank{
+      width:20px;
+      font-size:18px;
+    }
+
+    .video-card .title{
+      white-space:normal;
+      display:-webkit-box;
+      -webkit-line-clamp:2;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+    }
+
+    .video-card .meta{
+      gap:6px;
+      font-size:10.5px;
+    }
+
+    .underdog-card{
+      width:100%;
+      max-width:100%;
+      gap:9px;
+      padding:10px;
+    }
+
+    .underdog-card img.channel-thumb{
+      width:40px;
+      height:40px;
+    }
+
+    .underdog-card img.video-thumb{
+      width:78px;
+      height:44px;
+    }
+
+    .underdog-ratio{
+      min-width:48px;
+      font-size:15px;
+    }
+
+    .underdog-card .title{
+      font-size:13px;
+      white-space:normal;
+    }
+
+    #analyzeResult{
+      width:100%;
+      max-width:100% !important;
+      margin-left:auto !important;
+      margin-right:auto !important;
+    }
+
+    #emailForm{
+      width:100%;
+    }
+
+    #emailForm input[type=email]{
+      width:100%;
+      min-width:0 !important;
+      flex:1 1 100%;
+    }
+
+    #emailForm button{
+      width:100%;
+      min-height:48px;
+      padding:12px 22px !important;
+    }
+  }
+
 </style>
 </head>
 <body>
@@ -199,7 +347,7 @@
 
 <div class="tabs">
   <button class="tab-btn active" id="tabKeywords" onclick="switchTab('keywords')">Investigar tema</button>
-  <button class="tab-btn" id="tabUnderdogs" onclick="switchTab('underdogs')">Canales underdog</button>
+  <button class="tab-btn" id="tabUnderdogs" onclick="switchTab('underdogs')">Diamantes en bruto</button>
   <button class="tab-btn" id="tabAnalyze" onclick="switchTab('analyze')">Analizar video</button>
 </div>
 
@@ -250,7 +398,7 @@
 
   <div class="tab-panel" id="panelUnderdogs">
     <div class="hero">
-      <div class="eyebrow">Canales underdog</div>
+      <div class="eyebrow">Diamantes en bruto</div>
       <h2>Encontrá canales chicos con vistas grandes</h2>
       <p>Buscá un tema y Pista te muestra canales con pocos suscriptores que igual están consiguiendo muchas vistas.</p>
       <div class="search-row">
@@ -281,11 +429,11 @@
 <!-- Formulario de emails -->
 <section style="max-width:560px;margin:50px auto 30px;text-align:center;padding:0 20px;">
   <h3 style="font-family:'Archivo Black',sans-serif;font-size:22px;margin-bottom:10px;">
-    ¿Querés más funciones?
+    ¿Querés Pista Premium?
   </h3>
   <p style="color:var(--muted);font-size:14px;margin-bottom:22px;line-height:1.55;">
-    Dejá tu email y te aviso cuando salgan las funciones premium<br>
-    (búsquedas ilimitadas + análisis con IA).
+    Anotate y te avisamos cuando Pista Premium esté disponible.<br>
+    Búsquedas ilimitadas, Diamantes en bruto y futuras funciones premium.
   </p>
 
   <form id="emailForm" action="https://formspree.io/f/mkjwbded" method="POST"
@@ -498,7 +646,7 @@ function switchTab(tab){
   document.getElementById('panelAnalyze').classList.toggle('active', tab === 'analyze');
 }
 
-// --- buscador de canales underdog ---
+// --- buscador de diamantes en bruto ---
 const underdogStatusEl = document.getElementById('underdogStatus');
 
 function setUnderdogStatus(msg, isError){
@@ -530,7 +678,7 @@ async function runUnderdogSearch(){
     if(!res.ok){ throw new Error(data.error || 'Error al buscar.'); }
 
     if(!data.channels || data.channels.length === 0){
-      setUnderdogStatus('No se encontraron canales underdog claros para ese tema.', true);
+      setUnderdogStatus('No se encontraron diamantes en bruto claros para ese tema.', true);
       btn.disabled = false;
       return;
     }
@@ -648,7 +796,7 @@ if(emailForm){
       });
 
       if(res.ok){
-        msgEl.textContent = '¡Listo! Te vamos a avisar.';
+        msgEl.textContent = '¡Listo! Te avisaremos cuando Pista Premium esté disponible.';
         emailForm.reset();
       } else {
         msgEl.textContent = 'Hubo un error, probá de nuevo.';
