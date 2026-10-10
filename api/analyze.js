@@ -1,4 +1,4 @@
-```js
+
 const { checkAndIncrement } = require('./_rateLimit');
 
 const ALLOWED_ORIGIN = 'https://pista-app-seven.vercel.app';
@@ -16,10 +16,11 @@ function setCors(req, res) {
 }
 
 function extractVideoId(url) {
-  const m = url.match(
+  const match = url.match(
     /(?:v=|\/videos\/|embed\/|youtu\.be\/|\/v\/|\/shorts\/)([a-zA-Z0-9_-]{11})/
   );
-  return m ? m[1] : null;
+
+  return match ? match[1] : null;
 }
 
 module.exports = async (req, res) => {
@@ -27,6 +28,12 @@ module.exports = async (req, res) => {
 
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
+  }
+
+  if (req.method !== 'GET') {
+    return res.status(405).json({
+      error: 'Método no permitido.'
+    });
   }
 
   try {
@@ -38,22 +45,11 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Validamos primero el link para no consumir una búsqueda
-    // cuando la URL no es un video de YouTube válido.
     const videoId = extractVideoId(url);
 
     if (!videoId) {
       return res.status(400).json({
         error: 'No se pudo reconocer un link de YouTube válido.'
-      });
-    }
-
-    // El límite se aplica solamente después de validar la entrada.
-    const limit = await checkAndIncrement(req);
-
-    if (!limit.allowed) {
-      return res.status(429).json({
-        error: 'Llegaste al límite de 8 búsquedas gratis por hoy. Volvé mañana.'
       });
     }
 
@@ -65,8 +61,23 @@ module.exports = async (req, res) => {
       });
     }
 
+    const limit = await checkAndIncrement(req);
+
+    if (!limit.allowed) {
+      return res.status(429).json({
+        error: 'Llegaste al límite de 8 búsquedas gratis por hoy. Volvé mañana.'
+      });
+    }
+
+    const params = new URLSearchParams({
+      part: 'snippet,statistics',
+      id: videoId,
+      key: API_KEY
+    });
+
     const videoUrl =
-      `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoId}&key=${API_KEY}`;
+      'https://www.googleapis.com/youtube/v3/videos?' +
+      params.toString();
 
     const videoRes = await fetch(videoUrl);
     const videoData = await videoRes.json();
@@ -115,9 +126,10 @@ module.exports = async (req, res) => {
       premium: limit.premium
     });
   } catch (err) {
+    console.error('Error en /api/analyze:', err);
+
     return res.status(500).json({
-      error: err.message
+      error: 'No se pudo analizar el video. Intentá nuevamente.'
     });
   }
 };
-```
