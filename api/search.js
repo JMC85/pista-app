@@ -1,3 +1,4 @@
+
 const { checkAndIncrement } = require('./_rateLimit');
 
 const ALLOWED_ORIGIN = 'https://pista-app-seven.vercel.app';
@@ -30,6 +31,10 @@ module.exports = async (req, res) => {
       });
     }
 
+    // Relevancia sigue siendo el criterio predeterminado.
+    // Solo aceptamos los criterios permitidos.
+    const order = req.query.order === 'date' ? 'date' : 'relevance';
+
     const limit = await checkAndIncrement(req);
 
     if (!limit.allowed) {
@@ -47,7 +52,7 @@ module.exports = async (req, res) => {
     }
 
     const searchUrl =
-      `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&order=relevance&maxResults=25&relevanceLanguage=es&q=${encodeURIComponent(q)}&key=${API_KEY}`;
+      `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&order=${order}&maxResults=25&relevanceLanguage=es&q=${encodeURIComponent(q)}&key=${API_KEY}`;
 
     const searchRes = await fetch(searchUrl);
     const searchData = await searchRes.json();
