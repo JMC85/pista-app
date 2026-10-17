@@ -167,6 +167,26 @@
   .video-card .meta{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;}
   .video-card .meta .views{color:var(--green);}
   .video-card .meta .velocity{color:var(--amber);}
+  .sort-controls{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    max-width:640px;
+    margin:12px auto 0;
+    color:var(--muted);
+    font-size:13px;
+  }
+  .sort-controls select{
+    max-width:100%;
+    background:var(--panel);
+    border:1px solid var(--line);
+    color:var(--text);
+    padding:10px 12px;
+    border-radius:8px;
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+  }
   .tag-pill{background:var(--panel-2);border:1px solid var(--line);color:var(--muted);padding:4px 10px;border-radius:20px;font-family:'IBM Plex Mono',monospace;font-size:11px;}
   footer{text-align:center;padding:30px;color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;}
   .tabs{display:flex;justify-content:center;gap:8px;padding:16px clamp(20px,5vw,64px) 0;flex-wrap:wrap;}
@@ -227,6 +247,11 @@
       width:100%;
       max-width:640px;
       gap:10px;
+    }
+
+    .sort-controls{
+      flex-wrap:wrap;
+      justify-content:center;
     }
 
     .search-row input[type=text]{
@@ -361,6 +386,13 @@
         <input type="text" id="query" placeholder="ej: rutina de espalda en casa" autofocus />
         <button id="searchBtn">Buscar</button>
       </div>
+      <div class="sort-controls">
+        <label for="sortOrder">Ordenar resultados:</label>
+        <select id="sortOrder">
+          <option value="views">Más vistas</option>
+          <option value="recent">Más recientes</option>
+        </select>
+      </div>
       <div id="status"></div>
       <div id="emptyHint" class="empty-state" style="max-width:640px;margin:28px auto 0;">
         Escribí una idea de video y tocá <strong>Buscar</strong>.<br>
@@ -415,7 +447,7 @@
     <div class="hero">
       <div class="eyebrow">Análisis de video</div>
       <h2>Analizá cualquier video de YouTube</h2>
-      <p>Pegá el link de un video y Pista te muestra métricas clave, interacción y tags.</p>
+      <p>Pegá el link de un video y Pista te muestra métricas clave, engagement y tags.</p>
       <div class="search-row">
         <input type="text" id="analyzeUrl" placeholder="https://www.youtube.com/watch?v=..." />
         <button id="analyzeBtn">Analizar</button>
@@ -520,6 +552,7 @@ document.getElementById('searchBtn').onclick = runSearch;
 
 async function runSearch(){
   const q = document.getElementById('query').value.trim();
+  const order = document.getElementById('sortOrder').value;
   if(!q){ setStatus('Escribí un tema para buscar.', true); return; }
 
   const usedToday = getUsageToday();
@@ -537,7 +570,10 @@ async function runSearch(){
   if (emptyHint) emptyHint.style.display = 'none';
 
   try{
-    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+    const apiOrder = order === 'recent' ? 'date' : 'relevance';
+    const res = await fetch(
+      `/api/search?q=${encodeURIComponent(q)}&order=${apiOrder}`
+    );
     const data = await res.json();
     if(!res.ok){ throw new Error(data.error || 'Error al buscar.'); }
 
@@ -547,7 +583,13 @@ async function runSearch(){
       return;
     }
 
-    const videos = data.videos.sort((a,b) => b.views - a.views);
+    const videos = data.videos.sort((a, b) => {
+      if(order === 'recent'){
+        return new Date(b.publishedAt) - new Date(a.publishedAt);
+      }
+      return b.views - a.views;
+    });
+
     renderResults(q, data.totalResults, videos);
     const remaining = DAILY_LIMIT - bumpUsageToday();
     setStatus(`Listo. ${videos.length} videos analizados. (te quedan ${Math.max(remaining,0)} hoy)`);
