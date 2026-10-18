@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://pista-app-seven.vercel.app/sitemap.xml
