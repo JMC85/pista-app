@@ -51,27 +51,45 @@ module.exports = async (req, res) => {
     const publishedAfter = new Date();
     publishedAfter.setUTCFullYear(publishedAfter.getUTCFullYear() - 1);
 
-    const searchUrl =
-      `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&order=date&maxResults=50&publishedAfter=${encodeURIComponent(publishedAfter.toISOString())}&relevanceLanguage=es&q=${encodeURIComponent(q)}&key=${API_KEY}`;
+    // Primera página de 50 videos. Si después de aplicar los filtros
+    // todavía hay menos de 25 canales, consultamos una segunda página.
+    const items = [];
+    let nextPageToken = null;
 
-    const searchRes = await fetch(searchUrl);
-    const searchData = await searchRes.json();
+    for (let page = 0; page < 2; page++) {
+      const pageTokenParam = nextPageToken
+        ? `&pageToken=${encodeURIComponent(nextPageToken)}`
+        : '';
 
-    if (searchData.error) {
-      const reason = searchData.error.errors?.[0]?.reason;
+      const searchUrl =
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&order=date&maxResults=50&publishedAfter=${encodeURIComponent(publishedAfter.toISOString())}&relevanceLanguage=es&q=${encodeURIComponent(q)}${pageTokenParam}&key=${API_KEY}`;
 
-      if (reason === 'quotaExceeded') {
-        return res.status(429).json({
-          error: 'Se alcanzó el límite diario de búsquedas gratis. Probá de nuevo mañana.'
+      const searchRes = await fetch(searchUrl);
+      const searchData = await searchRes.json();
+
+      if (searchData.error) {
+        const reason = searchData.error.errors?.[0]?.reason;
+
+        if (reason === 'quotaExceeded') {
+          return res.status(429).json({
+            error: 'Se alcanzó el límite diario de búsquedas gratis. Probá de nuevo mañana.'
+          });
+        }
+
+        return res.status(500).json({
+          error: searchData.error.message
         });
       }
 
-      return res.status(500).json({
-        error: searchData.error.message
-      });
-    }
+      items.push(...(searchData.items || []));
+      nextPageToken = searchData.nextPageToken || null;
 
-    const items = searchData.items || [];
+      // No gastar otra consulta si ya tenemos suficientes videos candidatos
+      // o si YouTube no ofrece una página siguiente.
+      if (page === 1 || items.length >= 50 || !nextPageToken) {
+        break;
+      }
+    }
 
     if (items.length === 0) {
       return res.status(200).json({
