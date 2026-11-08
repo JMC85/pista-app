@@ -234,7 +234,8 @@ module.exports = async (req, res) => {
         ch.subscribers !== null &&
         ch.subscribers >= 100 &&
         ch.subscribers < 50000 &&
-        ch.ratio !== null
+        ch.ratio !== null &&
+        ch.ratio >= 1.0
       )
       // Orden cronológico: publicación más reciente primero.
       .sort((a, b) =>
