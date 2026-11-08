@@ -118,21 +118,31 @@ module.exports = async (req, res) => {
       });
     }
 
-    const videosUrl =
-      `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoIds}&key=${API_KEY}`;
+    // videos.list admite hasta 50 IDs por solicitud. Como ahora podemos
+    // reunir hasta 100 videos, los consultamos en bloques de 50.
+    const videoIdList = videoIds.split(',');
+    const videoItems = [];
 
-    const videosRes = await fetch(videosUrl);
-    const videosData = await videosRes.json();
+    for (let i = 0; i < videoIdList.length; i += 50) {
+      const batchIds = videoIdList.slice(i, i + 50).join(',');
+      const videosUrl =
+        `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${batchIds}&key=${API_KEY}`;
 
-    if (videosData.error) {
-      return res.status(500).json({
-        error: videosData.error.message
-      });
+      const videosRes = await fetch(videosUrl);
+      const videosData = await videosRes.json();
+
+      if (videosData.error) {
+        return res.status(500).json({
+          error: videosData.error.message
+        });
+      }
+
+      videoItems.push(...(videosData.items || []));
     }
 
     const bestVideoByChannel = {};
 
-    videosData.items.forEach(v => {
+    videoItems.forEach(v => {
       const channelId = v.snippet.channelId;
       const views = parseInt(v.statistics.viewCount || '0', 10);
       const publishedAt = v.snippet.publishedAt;
@@ -177,19 +187,27 @@ module.exports = async (req, res) => {
       });
     }
 
-    const channelsUrl =
-      `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelIds.join(',')}&key=${API_KEY}`;
+    // channels.list también admite hasta 50 IDs por solicitud.
+    const channelItems = [];
 
-    const channelsRes = await fetch(channelsUrl);
-    const channelsData = await channelsRes.json();
+    for (let i = 0; i < channelIds.length; i += 50) {
+      const batchIds = channelIds.slice(i, i + 50).join(',');
+      const channelsUrl =
+        `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${batchIds}&key=${API_KEY}`;
 
-    if (channelsData.error) {
-      return res.status(500).json({
-        error: channelsData.error.message
-      });
+      const channelsRes = await fetch(channelsUrl);
+      const channelsData = await channelsRes.json();
+
+      if (channelsData.error) {
+        return res.status(500).json({
+          error: channelsData.error.message
+        });
+      }
+
+      channelItems.push(...(channelsData.items || []));
     }
 
-    const channels = channelsData.items
+    const channels = channelItems
       .map(ch => {
         const subs = ch.statistics.hiddenSubscriberCount
           ? null
