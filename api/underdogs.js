@@ -84,9 +84,9 @@ module.exports = async (req, res) => {
       items.push(...(searchData.items || []));
       nextPageToken = searchData.nextPageToken || null;
 
-      // No gastar otra consulta si ya tenemos suficientes videos candidatos
-      // o si YouTube no ofrece una página siguiente.
-      if (page === 1 || items.length >= 50 || !nextPageToken) {
+      // Consultar como máximo dos páginas; si YouTube no ofrece
+      // una página siguiente, terminamos antes.
+      if (page === 1 || !nextPageToken) {
         break;
       }
     }
