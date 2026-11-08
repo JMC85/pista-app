@@ -190,6 +190,7 @@ module.exports = async (req, res) => {
       })
       .filter(ch =>
         ch.subscribers !== null &&
+        ch.subscribers >= 100 &&
         ch.subscribers < 50000 &&
         ch.ratio !== null
       )
