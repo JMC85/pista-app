@@ -46,8 +46,13 @@ module.exports = async (req, res) => {
       });
     }
 
+    // Buscar únicamente videos publicados durante los últimos 12 meses,
+    // ordenados desde el más reciente. Así evitamos canales inactivos.
+    const publishedAfter = new Date();
+    publishedAfter.setUTCFullYear(publishedAfter.getUTCFullYear() - 1);
+
     const searchUrl =
-      `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&order=viewCount&maxResults=50&relevanceLanguage=es&q=${encodeURIComponent(q)}&key=${API_KEY}`;
+      `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&order=date&maxResults=50&publishedAfter=${encodeURIComponent(publishedAfter.toISOString())}&relevanceLanguage=es&q=${encodeURIComponent(q)}&key=${API_KEY}`;
 
     const searchRes = await fetch(searchUrl);
     const searchData = await searchRes.json();
@@ -76,7 +81,18 @@ module.exports = async (req, res) => {
       });
     }
 
-    const videoIds = items.map(it => it.id.videoId).join(',');
+    const videoIds = items
+      .map(it => it.id?.videoId)
+      .filter(Boolean)
+      .join(',');
+
+    if (!videoIds) {
+      return res.status(200).json({
+        channels: [],
+        remaining: limit.remaining,
+        premium: limit.premium
+      });
+    }
 
     const videosUrl =
       `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoIds}&key=${API_KEY}`;
@@ -95,19 +111,35 @@ module.exports = async (req, res) => {
     videosData.items.forEach(v => {
       const channelId = v.snippet.channelId;
       const views = parseInt(v.statistics.viewCount || '0', 10);
+      const publishedAt = v.snippet.publishedAt;
+      const current = bestVideoByChannel[channelId];
 
-      if (
-        !bestVideoByChannel[channelId] ||
-        views > bestVideoByChannel[channelId].views
-      ) {
+      if (!current) {
         bestVideoByChannel[channelId] = {
           videoId: v.id,
           title: v.snippet.title,
           views,
           thumb: v.snippet.thumbnails.medium?.url ||
             v.snippet.thumbnails.default.url,
-          publishedAt: v.snippet.publishedAt
+          publishedAt,
+          latestPublishedAt: publishedAt
         };
+        return;
+      }
+
+      // Guardamos la fecha más reciente del canal por separado del video
+      // con más vistas encontrado dentro del período de 12 meses.
+      if (new Date(publishedAt) > new Date(current.latestPublishedAt)) {
+        current.latestPublishedAt = publishedAt;
+      }
+
+      if (views > current.views) {
+        current.videoId = v.id;
+        current.title = v.snippet.title;
+        current.views = views;
+        current.thumb = v.snippet.thumbnails.medium?.url ||
+          v.snippet.thumbnails.default.url;
+        current.publishedAt = publishedAt;
       }
     });
 
@@ -139,11 +171,11 @@ module.exports = async (req, res) => {
           ? null
           : parseInt(ch.statistics.subscriberCount || '0', 10);
 
-        const bestVideo = bestVideoByChannel[ch.id];
+        const video = bestVideoByChannel[ch.id];
 
         const ratio =
           subs && subs > 0
-            ? bestVideo.views / subs
+            ? video.views / subs
             : null;
 
         return {
@@ -151,7 +183,8 @@ module.exports = async (req, res) => {
           channelTitle: ch.snippet.title,
           channelThumb: ch.snippet.thumbnails.default?.url,
           subscribers: subs,
-          video: bestVideo,
+          video,
+          latestPublishedAt: video.latestPublishedAt,
           ratio
         };
       })
@@ -160,8 +193,11 @@ module.exports = async (req, res) => {
         ch.subscribers < 50000 &&
         ch.ratio !== null
       )
-      .sort((a, b) => b.ratio - a.ratio)
-      .slice(0, 12);
+      // Orden cronológico: publicación más reciente primero.
+      .sort((a, b) =>
+        new Date(b.latestPublishedAt) - new Date(a.latestPublishedAt)
+      )
+      .slice(0, 25);
 
     return res.status(200).json({
       channels,
