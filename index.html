@@ -366,7 +366,7 @@
   </h3>
   <p style="color:var(--muted);font-size:14px;margin-bottom:22px;line-height:1.55;">
     Anotate y te avisamos cuando Pista Premium esté disponible.<br>
-    Búsquedas ilimitadas, Diamantes en bruto y futuras funciones premium.
+    Más capacidad de investigación y futuras funciones.
   </p>
 
   <form id="emailForm" action="https://formspree.io/f/mkjwbded" method="POST"
@@ -379,6 +379,13 @@
       aria-label="Tu correo electrónico"
       style="flex:1;min-width:200px;background:var(--panel);border:1px solid var(--line);color:var(--text);padding:14px 16px;border-radius:10px;font-size:14px;"
     />
+    <input type="hidden" name="purpose" value="Interés en Pista Premium" />
+    <input type="hidden" name="consent_version" value="2026-11-08" />
+    <label for="privacyConsent" style="display:flex;align-items:flex-start;gap:9px;width:100%;text-align:left;color:var(--muted);font-size:12px;line-height:1.5;cursor:pointer;">
+      <input id="privacyConsent" type="checkbox" name="privacy_consent" value="accepted" required
+        style="margin-top:2px;accent-color:var(--amber);flex-shrink:0;" />
+      <span>Acepto que Pista utilice mi correo para informarme sobre el lanzamiento de Premium y novedades relacionadas con Pista. Leí la <a href="/privacidad" target="_blank" rel="noopener" style="color:var(--amber);text-decoration:underline;">Política de Privacidad</a>.</span>
+    </label>
     <button type="submit"
       style="background:var(--amber);color:#1a1200;border:none;padding:0 22px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;height:48px;">
       Enviar
@@ -387,8 +394,12 @@
   <p id="formMessage" role="status" aria-live="polite" style="margin-top:14px;font-size:13px;color:var(--muted);"></p>
 </section>
 
-<footer>
-  PISTA · Herramienta gratuita para investigar temas de YouTube
+<footer style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+  <span>PISTA · Herramienta gratuita para investigar temas de YouTube</span>
+  <nav aria-label="Información legal" style="display:flex;gap:18px;flex-wrap:wrap;justify-content:center;">
+    <a href="/privacidad" style="color:var(--muted);text-decoration:underline;">Política de Privacidad</a>
+    <a href="/terminos" style="color:var(--muted);text-decoration:underline;">Términos de Uso</a>
+  </nav>
 </footer>
 
 <script>
