@@ -16,8 +16,15 @@ async function checkAndIncrement(req) {
     };
   }
 
-  const url = process.env.KV_REST_API_URL;
-  const token = process.env.KV_REST_API_TOKEN;
+  // Preview usa una base Redis independiente para no compartir el contador
+  // con Production. Si faltan sus credenciales, se mantiene el modo fail-open.
+  const isPreview = process.env.VERCEL_ENV === 'preview';
+  const url = isPreview
+    ? process.env.PISTA_PREVIEW_REDIS_URL
+    : process.env.KV_REST_API_URL;
+  const token = isPreview
+    ? process.env.PISTA_PREVIEW_REDIS_TOKEN
+    : process.env.KV_REST_API_TOKEN;
 
   // Si KV no está configurado, no bloqueamos la aplicación.
   if (!url || !token) {
