@@ -70,6 +70,12 @@ module.exports = async (req, res) => {
       if (searchData.error) {
         const reason = searchData.error.errors?.[0]?.reason;
 
+        // Si falla la segunda página, conservamos los resultados de la
+        // primera. Una falla de paginación no debe romper toda la búsqueda.
+        if (page === 1 && items.length > 0) {
+          break;
+        }
+
         if (reason === 'quotaExceeded') {
           return res.status(429).json({
             error: 'Se alcanzó el límite diario de búsquedas gratis. Probá de nuevo mañana.'
