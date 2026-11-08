@@ -46,27 +46,56 @@ module.exports = async (req, res) => {
       });
     }
 
-    const searchUrl =
-      `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&order=viewCount&maxResults=50&relevanceLanguage=es&q=${encodeURIComponent(q)}&key=${API_KEY}`;
+    // Buscar únicamente videos publicados durante los últimos 12 meses,
+    // ordenados desde el más reciente. Así evitamos canales inactivos.
+    const publishedAfter = new Date();
+    publishedAfter.setUTCFullYear(publishedAfter.getUTCFullYear() - 1);
 
-    const searchRes = await fetch(searchUrl);
-    const searchData = await searchRes.json();
+    // Primera página de 50 videos. Si después de aplicar los filtros
+    // todavía hay menos de 25 canales, consultamos una segunda página.
+    const items = [];
+    let nextPageToken = null;
 
-    if (searchData.error) {
-      const reason = searchData.error.errors?.[0]?.reason;
+    for (let page = 0; page < 2; page++) {
+      const pageTokenParam = nextPageToken
+        ? `&pageToken=${encodeURIComponent(nextPageToken)}`
+        : '';
 
-      if (reason === 'quotaExceeded') {
-        return res.status(429).json({
-          error: 'Se alcanzó el límite diario de búsquedas gratis. Probá de nuevo mañana.'
+      const searchUrl =
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&order=date&maxResults=50&publishedAfter=${encodeURIComponent(publishedAfter.toISOString())}&relevanceLanguage=es&q=${encodeURIComponent(q)}${pageTokenParam}&key=${API_KEY}`;
+
+      const searchRes = await fetch(searchUrl);
+      const searchData = await searchRes.json();
+
+      if (searchData.error) {
+        const reason = searchData.error.errors?.[0]?.reason;
+
+        // Si falla la segunda página, conservamos los resultados de la
+        // primera. Una falla de paginación no debe romper toda la búsqueda.
+        if (page === 1 && items.length > 0) {
+          break;
+        }
+
+        if (reason === 'quotaExceeded') {
+          return res.status(429).json({
+            error: 'Se alcanzó el límite diario de búsquedas gratis. Probá de nuevo mañana.'
+          });
+        }
+
+        return res.status(500).json({
+          error: searchData.error.message
         });
       }
 
-      return res.status(500).json({
-        error: searchData.error.message
-      });
-    }
+      items.push(...(searchData.items || []));
+      nextPageToken = searchData.nextPageToken || null;
 
-    const items = searchData.items || [];
+      // Consultar como máximo dos páginas; si YouTube no ofrece
+      // una página siguiente, terminamos antes.
+      if (page === 1 || !nextPageToken) {
+        break;
+      }
+    }
 
     if (items.length === 0) {
       return res.status(200).json({
@@ -76,38 +105,75 @@ module.exports = async (req, res) => {
       });
     }
 
-    const videoIds = items.map(it => it.id.videoId).join(',');
+    const videoIds = items
+      .map(it => it.id?.videoId)
+      .filter(Boolean)
+      .join(',');
 
-    const videosUrl =
-      `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoIds}&key=${API_KEY}`;
-
-    const videosRes = await fetch(videosUrl);
-    const videosData = await videosRes.json();
-
-    if (videosData.error) {
-      return res.status(500).json({
-        error: videosData.error.message
+    if (!videoIds) {
+      return res.status(200).json({
+        channels: [],
+        remaining: limit.remaining,
+        premium: limit.premium
       });
+    }
+
+    // videos.list admite hasta 50 IDs por solicitud. Como ahora podemos
+    // reunir hasta 100 videos, los consultamos en bloques de 50.
+    const videoIdList = videoIds.split(',');
+    const videoItems = [];
+
+    for (let i = 0; i < videoIdList.length; i += 50) {
+      const batchIds = videoIdList.slice(i, i + 50).join(',');
+      const videosUrl =
+        `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${batchIds}&key=${API_KEY}`;
+
+      const videosRes = await fetch(videosUrl);
+      const videosData = await videosRes.json();
+
+      if (videosData.error) {
+        return res.status(500).json({
+          error: videosData.error.message
+        });
+      }
+
+      videoItems.push(...(videosData.items || []));
     }
 
     const bestVideoByChannel = {};
 
-    videosData.items.forEach(v => {
+    videoItems.forEach(v => {
       const channelId = v.snippet.channelId;
       const views = parseInt(v.statistics.viewCount || '0', 10);
+      const publishedAt = v.snippet.publishedAt;
+      const current = bestVideoByChannel[channelId];
 
-      if (
-        !bestVideoByChannel[channelId] ||
-        views > bestVideoByChannel[channelId].views
-      ) {
+      if (!current) {
         bestVideoByChannel[channelId] = {
           videoId: v.id,
           title: v.snippet.title,
           views,
           thumb: v.snippet.thumbnails.medium?.url ||
             v.snippet.thumbnails.default.url,
-          publishedAt: v.snippet.publishedAt
+          publishedAt,
+          latestPublishedAt: publishedAt
         };
+        return;
+      }
+
+      // Guardamos la fecha más reciente del canal por separado del video
+      // con más vistas encontrado dentro del período de 12 meses.
+      if (new Date(publishedAt) > new Date(current.latestPublishedAt)) {
+        current.latestPublishedAt = publishedAt;
+      }
+
+      if (views > current.views) {
+        current.videoId = v.id;
+        current.title = v.snippet.title;
+        current.views = views;
+        current.thumb = v.snippet.thumbnails.medium?.url ||
+          v.snippet.thumbnails.default.url;
+        current.publishedAt = publishedAt;
       }
     });
 
@@ -121,29 +187,37 @@ module.exports = async (req, res) => {
       });
     }
 
-    const channelsUrl =
-      `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelIds.join(',')}&key=${API_KEY}`;
+    // channels.list también admite hasta 50 IDs por solicitud.
+    const channelItems = [];
 
-    const channelsRes = await fetch(channelsUrl);
-    const channelsData = await channelsRes.json();
+    for (let i = 0; i < channelIds.length; i += 50) {
+      const batchIds = channelIds.slice(i, i + 50).join(',');
+      const channelsUrl =
+        `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${batchIds}&key=${API_KEY}`;
 
-    if (channelsData.error) {
-      return res.status(500).json({
-        error: channelsData.error.message
-      });
+      const channelsRes = await fetch(channelsUrl);
+      const channelsData = await channelsRes.json();
+
+      if (channelsData.error) {
+        return res.status(500).json({
+          error: channelsData.error.message
+        });
+      }
+
+      channelItems.push(...(channelsData.items || []));
     }
 
-    const channels = channelsData.items
+    const channels = channelItems
       .map(ch => {
         const subs = ch.statistics.hiddenSubscriberCount
           ? null
           : parseInt(ch.statistics.subscriberCount || '0', 10);
 
-        const bestVideo = bestVideoByChannel[ch.id];
+        const video = bestVideoByChannel[ch.id];
 
         const ratio =
           subs && subs > 0
-            ? bestVideo.views / subs
+            ? video.views / subs
             : null;
 
         return {
@@ -151,17 +225,23 @@ module.exports = async (req, res) => {
           channelTitle: ch.snippet.title,
           channelThumb: ch.snippet.thumbnails.default?.url,
           subscribers: subs,
-          video: bestVideo,
+          video,
+          latestPublishedAt: video.latestPublishedAt,
           ratio
         };
       })
       .filter(ch =>
         ch.subscribers !== null &&
+        ch.subscribers >= 100 &&
         ch.subscribers < 50000 &&
-        ch.ratio !== null
+        ch.ratio !== null &&
+        ch.ratio >= 1.0
       )
-      .sort((a, b) => b.ratio - a.ratio)
-      .slice(0, 12);
+      // Orden cronológico: publicación más reciente primero.
+      .sort((a, b) =>
+        new Date(b.latestPublishedAt) - new Date(a.latestPublishedAt)
+      )
+      .slice(0, 25);
 
     return res.status(200).json({
       channels,
