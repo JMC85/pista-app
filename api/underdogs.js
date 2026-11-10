@@ -27,10 +27,23 @@ async function fetchVideoStats(items, apiKey) {
       `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${batchIds}&key=${apiKey}`;
 
     const response = await fetch(url);
-    const data = await response.json();
+    let data;
 
-    if (data.error) {
-      throw new Error(data.error.message);
+    try {
+      data = await response.json();
+    } catch (err) {
+      throw new Error(
+        `YouTube videos.list: HTTP ${response.status}; respuesta no JSON.`
+      );
+    }
+
+    if (!response.ok || data.error) {
+      const reason = data.error?.errors?.[0]?.reason || 'sin motivo informado';
+      const message = data.error?.message || response.statusText || 'Error desconocido';
+
+      throw new Error(
+        `YouTube videos.list: HTTP ${response.status}; motivo: ${reason}; ${message}`
+      );
     }
 
     results.push(...(data.items || []));
